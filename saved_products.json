@@ -1,0 +1,147 @@
+[
+  {
+    "product_id": "broom_001",
+    "product_name": "Plastic Broom",
+    "functional_unit_amount": 1.0,
+    "functional_unit": "unit",
+    "processes": [
+      {
+        "process_id": "broom_001_raw_materials",
+        "process_name": "Plastic Broom [Raw Materials]",
+        "stage": "Raw Materials",
+        "exchanges": [
+          {
+            "flow_name": "Plastic granules",
+            "exchange_type": "input",
+            "amount": 0.3,
+            "unit": "kg"
+          },
+          {
+            "flow_name": "Broom bristles",
+            "exchange_type": "input",
+            "amount": 0.1,
+            "unit": "kg"
+          }
+        ],
+        "transportation": []
+      },
+      {
+        "process_id": "broom_001_manufacturing",
+        "process_name": "Plastic Broom [Manufacturing]",
+        "stage": "Manufacturing",
+        "exchanges": [
+          {
+            "flow_name": "Electricity, grid average",
+            "exchange_type": "input",
+            "amount": 0.2,
+            "unit": "kWh"
+          },
+          {
+            "flow_name": "Carbon dioxide, fossil",
+            "exchange_type": "output",
+            "amount": 0.05,
+            "unit": "kg"
+          }
+        ],
+        "transportation": [
+          {
+            "transport_mode": "truck",
+            "distance": 100.0,
+            "distance_unit": "km",
+            "transported_mass": 0.4,
+            "mass_unit": "kg"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "product_id": "pet_bottle_500ml",
+    "product_name": "500ml PET Beverage Bottle",
+    "functional_unit_amount": 1.0,
+    "functional_unit": "unit",
+    "processes": [
+      {
+        "process_id": "pet_bottle_500ml_raw_materials",
+        "process_name": "500ml PET Beverage Bottle [Raw Materials]",
+        "stage": "Raw Materials",
+        "exchanges": [
+          {
+            "flow_name": "Plastic granules",
+            "exchange_type": "input",
+            "amount": 0.025,
+            "unit": "kg"
+          },
+          {
+            "flow_name": "Plastic granules",
+            "exchange_type": "input",
+            "amount": 0.003,
+            "unit": "kg"
+          },
+          {
+            "flow_name": "Paper, office/printing generic",
+            "exchange_type": "input",
+            "amount": 0.001,
+            "unit": "kg"
+          }
+        ],
+        "transportation": []
+      },
+      {
+        "process_id": "pet_bottle_500ml_manufacturing",
+        "process_name": "500ml PET Beverage Bottle [Manufacturing]",
+        "stage": "Manufacturing",
+        "exchanges": [
+          {
+            "flow_name": "Electricity, grid average",
+            "exchange_type": "input",
+            "amount": 0.045,
+            "unit": "kWh"
+          },
+          {
+            "flow_name": "Tap water, municipal",
+            "exchange_type": "input",
+            "amount": 0.15,
+            "unit": "kg"
+          },
+          {
+            "flow_name": "Carbon dioxide, fossil",
+            "exchange_type": "output",
+            "amount": 0.002,
+            "unit": "kg"
+          }
+        ],
+        "transportation": []
+      },
+      {
+        "process_id": "pet_bottle_500ml_packaging",
+        "process_name": "500ml PET Beverage Bottle [Packaging]",
+        "stage": "Packaging",
+        "exchanges": [
+          {
+            "flow_name": "Cardboard, corrugated packaging",
+            "exchange_type": "input",
+            "amount": 0.015,
+            "unit": "kg"
+          }
+        ],
+        "transportation": []
+      },
+      {
+        "process_id": "pet_bottle_500ml_distribution",
+        "process_name": "500ml PET Beverage Bottle [Distribution & Transport]",
+        "stage": "Distribution & Transport",
+        "exchanges": [],
+        "transportation": [
+          {
+            "transport_mode": "truck",
+            "distance": 150.0,
+            "distance_unit": "km",
+            "transported_mass": 0.044,
+            "mass_unit": "kg"
+          }
+        ]
+      }
+    ]
+  }
+]
