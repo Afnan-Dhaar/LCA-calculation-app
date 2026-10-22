@@ -107,3 +107,123 @@ export const SAMPLE_PRODUCTS = [
     ]
   }
 ]
+
+export const SENIOR_REFINERY_PAYLOAD = {
+  product: {
+    name: "Diesel, refinery gate",
+    functional_unit: "1 kg of diesel"
+  },
+  allocation: {
+    method: "mass"
+  },
+  inputs: [
+    {
+      name: "Crude oil",
+      key: "crude_oil",
+      stage: "raw_material",
+      amount: 1.15,
+      unit: "kg"
+    },
+    {
+      name: "Process electricity",
+      key: "electricity_grid_sa",
+      stage: "manufacturing",
+      amount: 0.12,
+      unit: "kWh"
+    },
+    {
+      name: "Process heat",
+      key: "natural_gas_heat",
+      stage: "manufacturing",
+      amount: 0.8,
+      unit: "kWh"
+    },
+    {
+      name: "Hydrogen (hydrotreating)",
+      key: "hydrogen_smr",
+      stage: "manufacturing",
+      amount: 0.02,
+      unit: "kg"
+    },
+    {
+      name: "Crude oil transport",
+      key: "truck_16t",
+      stage: "transport",
+      mass: 1.15,
+      mass_unit: "kg",
+      distance_km: 300
+    }
+  ],
+  outputs: [
+    {
+      type: "product",
+      name: "Diesel",
+      amount: 1.0,
+      unit: "kg",
+      price: 1.0
+    },
+    {
+      type: "co_product",
+      name: "Gasoline",
+      amount: 0.35,
+      unit: "kg",
+      price: 1.1
+    },
+    {
+      type: "co_product",
+      name: "LPG",
+      amount: 0.12,
+      unit: "kg",
+      price: 0.9
+    },
+    {
+      type: "emission",
+      name: "Flue gas CO2",
+      flow: "co2",
+      amount: 0.22,
+      unit: "kg"
+    },
+    {
+      type: "emission",
+      name: "Flue gas SO2",
+      flow: "so2",
+      amount: 0.0004,
+      unit: "kg"
+    },
+    {
+      type: "emission",
+      name: "Flue gas NOx",
+      flow: "nox",
+      amount: 0.0007,
+      unit: "kg"
+    },
+    {
+      type: "emission",
+      name: "Fugitive methane",
+      flow: "ch4",
+      amount: 0.0009,
+      unit: "kg"
+    },
+    {
+      type: "waste",
+      name: "Process wastewater",
+      key: "wastewater_treatment",
+      amount: 0.003,
+      unit: "m3"
+    },
+    {
+      type: "waste",
+      name: "Spent catalyst",
+      key: "hazardous_waste_incineration",
+      amount: 0.0008,
+      unit: "kg"
+    }
+  ],
+  metadata: {
+    product_code: "DSL-001",
+    plant: "Refinery A",
+    period: "2026-Q3",
+    request_ref: "REQ-12345"
+  }
+}
+

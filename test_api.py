@@ -157,6 +157,152 @@ def test_invalid_product_validation():
     assert res.status_code == 422
 
 
+def test_senior_flat_refinery_payload():
+    """Test that senior's flat refinery payload with mass allocation calculates seamlessly."""
+    senior_payload = {
+        "product": {
+            "name": "Diesel, refinery gate",
+            "functional_unit": "1 kg of diesel"
+        },
+        "allocation": {
+            "method": "mass"
+        },
+        "inputs": [
+            {
+                "name": "Crude oil",
+                "key": "crude_oil",
+                "stage": "raw_material",
+                "amount": 1.15,
+                "unit": "kg"
+            },
+            {
+                "name": "Process electricity",
+                "key": "electricity_grid_sa",
+                "stage": "manufacturing",
+                "amount": 0.12,
+                "unit": "kWh"
+            },
+            {
+                "name": "Process heat",
+                "key": "natural_gas_heat",
+                "stage": "manufacturing",
+                "amount": 0.8,
+                "unit": "kWh"
+            },
+            {
+                "name": "Hydrogen (hydrotreating)",
+                "key": "hydrogen_smr",
+                "stage": "manufacturing",
+                "amount": 0.02,
+                "unit": "kg"
+            },
+            {
+                "name": "Crude oil transport",
+                "key": "truck_16t",
+                "stage": "transport",
+                "mass": 1.15,
+                "mass_unit": "kg",
+                "distance_km": 300
+            }
+        ],
+        "outputs": [
+            {
+                "type": "product",
+                "name": "Diesel",
+                "amount": 1.0,
+                "unit": "kg",
+                "price": 1.0
+            },
+            {
+                "type": "co_product",
+                "name": "Gasoline",
+                "amount": 0.35,
+                "unit": "kg",
+                "price": 1.1
+            },
+            {
+                "type": "co_product",
+                "name": "LPG",
+                "amount": 0.12,
+                "unit": "kg",
+                "price": 0.9
+            },
+            {
+                "type": "emission",
+                "name": "Flue gas CO2",
+                "flow": "co2",
+                "amount": 0.22,
+                "unit": "kg"
+            },
+            {
+                "type": "emission",
+                "name": "Flue gas SO2",
+                "flow": "so2",
+                "amount": 0.0004,
+                "unit": "kg"
+            },
+            {
+                "type": "emission",
+                "name": "Flue gas NOx",
+                "flow": "nox",
+                "amount": 0.0007,
+                "unit": "kg"
+            },
+            {
+                "type": "emission",
+                "name": "Fugitive methane",
+                "flow": "ch4",
+                "amount": 0.0009,
+                "unit": "kg"
+            },
+            {
+                "type": "waste",
+                "name": "Process wastewater",
+                "key": "wastewater_treatment",
+                "amount": 0.003,
+                "unit": "m3"
+            },
+            {
+                "type": "waste",
+                "name": "Spent catalyst",
+                "key": "hazardous_waste_incineration",
+                "amount": 0.0008,
+                "unit": "kg"
+            }
+        ],
+        "metadata": {
+            "product_code": "DSL-001",
+            "plant": "Refinery A",
+            "period": "2026-Q3",
+            "request_ref": "REQ-12345"
+        }
+    }
+
+    # 1. Calculate directly via /api/lca/calculate
+    calc_res = client.post("/api/lca/calculate", json={"product": senior_payload})
+    assert calc_res.status_code == 200, calc_res.text
+    result = calc_res.json()
+    assert result["product_id"] == "DSL-001"
+    assert result["product_name"] == "Diesel, refinery gate"
+    assert result["total_score"] > 0.0
+    assert result["allocation_summary"] is not None
+    assert result["allocation_summary"]["method"] == "mass"
+    assert result["allocation_summary"]["allocation_percentage"] == 68.03
+    assert len(result["process_contributions"]) > 0
+
+    # 2. Save via /api/products
+    save_res = client.post("/api/products", json=senior_payload)
+    assert save_res.status_code == 201, save_res.text
+
+    # 3. Calculate saved product
+    calc_saved_res = client.post("/api/lca/calculate-saved/DSL-001")
+    assert calc_saved_res.status_code == 200, calc_saved_res.text
+
+    # 4. Clean up
+    del_res = client.delete("/api/products/DSL-001")
+    assert del_res.status_code == 200
+
+
 if __name__ == "__main__":
     print("=" * 60)
     print("RUNNING FASTAPI REST API INTEGRATION TESTS")
@@ -168,6 +314,7 @@ if __name__ == "__main__":
         ("List LCIA Methods", test_list_methods),
         ("Product CRUD & LCA Calculation", test_product_crud_and_calculation),
         ("Invalid Payload Validation", test_invalid_product_validation),
+        ("Senior Flat Refinery Payload & Allocation", test_senior_flat_refinery_payload),
     ]
 
     passed = 0

@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
-import { Code2, Copy, Download, ExternalLink, Play, Check } from 'lucide-react'
+import { Code2, Copy, Download, ExternalLink, Play, Check, Sparkles } from 'lucide-react'
+import { SENIOR_REFINERY_PAYLOAD } from '../sampleData'
 
 export default function ApiInspector({ product, onCalculatePayload, isCalculating }) {
   const [copiedPayload, setCopiedPayload] = useState(false)
@@ -36,11 +37,19 @@ export default function ApiInspector({ product, onCalculatePayload, isCalculatin
   const handleExecuteCustomJson = () => {
     try {
       const parsed = JSON.parse(customJson)
-      const targetProduct = parsed.product ? parsed.product : parsed
+      // Only unwrap if wrapped in { product: { product_id, processes... } }
+      let targetProduct = parsed
+      if (parsed.product && parsed.product.processes) {
+        targetProduct = parsed.product
+      }
       onCalculatePayload(targetProduct)
     } catch (err) {
       alert(`Invalid JSON format: ${err.message}`)
     }
+  }
+
+  const handleLoadSeniorPayload = () => {
+    setCustomJson(JSON.stringify(SENIOR_REFINERY_PAYLOAD, null, 2))
   }
 
   return (
@@ -129,14 +138,37 @@ export default function ApiInspector({ product, onCalculatePayload, isCalculatin
 
       {/* 3. Direct JSON Paste Runner */}
       <div className="glass-panel">
-        <h3 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>Direct JSON Payload Tester</h3>
-        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>
-          Paste any custom product JSON structure below and test real-time matrix calculation:
-        </p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+          <div>
+            <h3 style={{ fontSize: '1.1rem' }}>Direct JSON Payload Tester</h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>
+              Paste any custom product JSON structure (supports both multi-process and Senior's flat refinery format with ISO mass allocation):
+            </p>
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={handleLoadSeniorPayload}
+              title="Populate editor with Senior's Diesel Refinery mass allocation payload"
+            >
+              <Sparkles size={14} color="#F59E0B" />
+              <span>Load Senior's Refinery Payload</span>
+            </button>
+            {customJson && (
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => setCustomJson('')}
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
+
         <textarea
           className="form-control"
-          style={{ width: '100%', minHeight: '180px', fontFamily: 'var(--font-mono)', fontSize: '0.825rem', marginBottom: '1rem', background: '#090D16' }}
-          placeholder='{"product_id": "custom_prod", "product_name": "My Custom Widget", "functional_unit_amount": 1, "processes": [...]}'
+          style={{ width: '100%', minHeight: '220px', fontFamily: 'var(--font-mono)', fontSize: '0.825rem', marginBottom: '1rem', background: '#090D16' }}
+          placeholder='Paste Senior refinery payload or canonical product JSON...'
           value={customJson}
           onChange={(e) => setCustomJson(e.target.value)}
         />

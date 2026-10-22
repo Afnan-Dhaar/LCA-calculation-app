@@ -361,6 +361,50 @@ export default function LcaAnalytics({
             </div>
           </div>
 
+          {/* ISO 14044 Co-Product Allocation Banner (if applicable) */}
+          {result.allocation_summary && (
+            <div
+              className="glass-panel"
+              style={{
+                marginBottom: '1.75rem',
+                borderLeft: '4px solid #F59E0B',
+                background: 'rgba(245, 158, 11, 0.05)',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.5rem' }}>
+                <Sparkles size={18} color="#F59E0B" />
+                <h4 style={{ margin: 0, fontSize: '0.95rem', color: '#FCD34D' }}>
+                  ISO 14044 Multi-Output Co-Product Allocation ({result.allocation_summary.method?.toUpperCase()} METHOD)
+                </h4>
+              </div>
+              <p style={{ margin: '0 0 0.75rem 0', fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                A multi-output system balance was detected. Inputs, emissions, and transport burdens have been allocated using ISO 14044 {result.allocation_summary.method} allocation:
+                {' '}
+                <strong style={{ color: '#F59E0B' }}>
+                  {result.allocation_summary.allocation_percentage}%
+                </strong>{' '}
+                allocated to target product ({result.product_name}), with the remaining{' '}
+                <strong style={{ color: '#93C5FD' }}>
+                  {(100 - result.allocation_summary.allocation_percentage).toFixed(2)}%
+                </strong>{' '}
+                allocated to co-products.
+              </p>
+              {result.allocation_summary.co_products && result.allocation_summary.co_products.length > 0 && (
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  {result.allocation_summary.co_products.map((cp, idx) => (
+                    <span
+                      key={idx}
+                      className="badge"
+                      style={{ background: 'rgba(59, 130, 246, 0.15)', color: '#93C5FD', border: '1px solid rgba(59, 130, 246, 0.3)', padding: '0.25rem 0.6rem' }}
+                    >
+                      Co-product: {cp.name} ({cp.amount} kg &bull; {cp.share_pct}%)
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* 1. Stage Contribution Visual Breakdown */}
           <div className="glass-panel" style={{ marginBottom: '1.75rem' }}>
             <h3 style={{ fontSize: '1.1rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>

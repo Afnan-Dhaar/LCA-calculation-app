@@ -179,7 +179,7 @@ STANDARD_BACKGROUND_ACTIVITIES: dict[str, dict[str, Any]] = {
         "name": "Freight transport, truck (road)",
         "unit": "metric ton*km",
         "co2_factor": 0.120,  # kg CO2 / tkm
-        "aliases": ["truck", "lorry", "road", "road transport", "truck transport"],
+        "aliases": ["truck", "lorry", "road", "road transport", "truck transport", "truck_16t", "truck 16t"],
     },
     "transport_train": {
         "name": "Freight transport, rail / train",
@@ -253,6 +253,43 @@ STANDARD_BACKGROUND_ACTIVITIES: dict[str, dict[str, Any]] = {
         "unit": "kg",
         "co2_factor": 0.0003,
         "aliases": ["water", "tap water", "process water"],
+    },
+    # Refinery & Petrochemical Feedstocks & Utilities
+    "crude_oil": {
+        "name": "Crude oil, petroleum at extraction/refinery gate",
+        "unit": "kg",
+        "co2_factor": 0.120,  # kg CO2 / kg crude oil
+        "aliases": ["crude_oil", "crude oil", "petroleum crude", "crude", "oil crude"],
+    },
+    "natural_gas_heat": {
+        "name": "Process heat, from natural gas boiler",
+        "unit": "kWh",
+        "co2_factor": 0.220,  # kg CO2 / kWh heat
+        "aliases": ["natural_gas_heat", "process heat", "heat, natural gas", "natural gas heat", "industrial heat"],
+    },
+    "electricity_grid_sa": {
+        "name": "Electricity, national grid (SA / regional)",
+        "unit": "kWh",
+        "co2_factor": 0.580,  # kg CO2 / kWh
+        "aliases": ["electricity_grid_sa", "process electricity", "grid sa", "electricity sa"],
+    },
+    "hydrogen_smr": {
+        "name": "Hydrogen, steam methane reforming (hydrotreating)",
+        "unit": "kg",
+        "co2_factor": 9.500,  # kg CO2 / kg H2
+        "aliases": ["hydrogen_smr", "hydrogen (hydrotreating)", "hydrogen", "smr hydrogen", "h2"],
+    },
+    "wastewater_treatment": {
+        "name": "Process wastewater treatment",
+        "unit": "m3",
+        "co2_factor": 0.350,  # kg CO2 / m3
+        "aliases": ["wastewater_treatment", "process wastewater", "wastewater", "effluent"],
+    },
+    "hazardous_waste_incineration": {
+        "name": "Hazardous waste incineration / spent catalyst",
+        "unit": "kg",
+        "co2_factor": 1.200,  # kg CO2 / kg
+        "aliases": ["hazardous_waste_incineration", "spent catalyst", "catalyst waste", "hazardous waste"],
     },
 }
 

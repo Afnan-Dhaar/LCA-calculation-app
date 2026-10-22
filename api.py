@@ -103,7 +103,7 @@ class ProductSchema(BaseModel):
 
 
 class CalculateLCARequest(BaseModel):
-    product: ProductSchema
+    product: ProductSchema | dict[str, Any]
     method: list[str] | tuple[str, ...] | None = Field(
         default=None,
         description="Optional LCIA method tuple. Defaults to CML v4.8 GWP100 climate change.",
@@ -171,6 +171,7 @@ class LCAResultResponse(BaseModel):
     transport_percentage: float
     inventory_summary: dict[str, float]
     warnings: list[str]
+    allocation_summary: dict[str, Any] | None = None
 
 
 # --------------------------------------------------
@@ -178,12 +179,14 @@ class LCAResultResponse(BaseModel):
 # --------------------------------------------------
 
 
-def pydantic_to_dataclass(schema: ProductSchema) -> Product:
-    """Convert Pydantic ProductSchema to domain Product dataclass."""
+def pydantic_to_dataclass(schema: ProductSchema | dict[str, Any]) -> Product:
+    """Convert Pydantic ProductSchema or raw payload dict to domain Product dataclass."""
+    if isinstance(schema, dict):
+        return dict_to_product(schema)
     return dict_to_product(schema.model_dump())
 
 
-def lca_result_to_response(res: LCAResult) -> LCAResultResponse:
+def lca_result_to_response(res: LCAResult, allocation_summary: dict[str, Any] | None = None) -> LCAResultResponse:
     """Convert domain LCAResult dataclass to Pydantic response."""
     return LCAResultResponse(
         product_id=res.product_id,
@@ -241,6 +244,7 @@ def lca_result_to_response(res: LCAResult) -> LCAResultResponse:
         transport_percentage=res.transport_percentage,
         inventory_summary=res.inventory_summary,
         warnings=res.warnings,
+        allocation_summary=allocation_summary,
     )
 
 
@@ -312,7 +316,7 @@ def get_product_by_id(product_id: str) -> dict[str, Any]:
 
 
 @app.post("/api/products", status_code=status.HTTP_201_CREATED, tags=["Product Storage"])
-def save_or_update_product(product_in: ProductSchema) -> dict[str, Any]:
+def save_or_update_product(product_in: ProductSchema | dict[str, Any]) -> dict[str, Any]:
     """Create or update a product life cycle model in storage."""
     product = pydantic_to_dataclass(product_in)
     errors = validate_product(product)
@@ -392,7 +396,7 @@ def calculate_lca(request: CalculateLCARequest) -> LCAResultResponse:
         except Exception as db_err:
             print(f"Warning: could not save run to database: {db_err}")
 
-        return lca_result_to_response(result)
+        return lca_result_to_response(result, domain_product.allocation_summary)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -427,7 +431,7 @@ def calculate_lca_on_saved_product(
         except Exception as db_err:
             print(f"Warning: could not save run to database: {db_err}")
 
-        return lca_result_to_response(result)
+        return lca_result_to_response(result, matched.allocation_summary)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
