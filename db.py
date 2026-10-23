@@ -190,6 +190,11 @@ INITIAL_FLOWS = {
     "so2": {"name": "Sulfur dioxide", "unit": "kilogram", "categories": "air"},
     "nox": {"name": "Nitrogen oxides", "unit": "kilogram", "categories": "air"},
     "nh3": {"name": "Ammonia", "unit": "kilogram", "categories": "air"},
+    "po4": {"name": "Phosphate", "unit": "kilogram", "categories": "water"},
+    "p": {"name": "Phosphorus", "unit": "kilogram", "categories": "water"},
+    "nmvoc": {"name": "Non-methane volatile organic compounds", "unit": "kilogram", "categories": "air"},
+    "cfc11": {"name": "CFC-11 (Trichlorofluoromethane)", "unit": "kilogram", "categories": "air"},
+    "co": {"name": "Carbon monoxide", "unit": "kilogram", "categories": "air"},
 }
 
 INITIAL_METHODS = {
@@ -205,40 +210,64 @@ INITIAL_METHODS = {
         "unit": "kg SO2-Eq",
         "cfs": {"so2": 1.0, "nox": 0.5, "nh3": 1.88},
     },
+    "eutrophication": {
+        "name": "CML-style Eutrophication",
+        "method_tuple": ["DEMO", "CML-style", "Eutrophication"],
+        "unit": "kg PO4-Eq",
+        "cfs": {"nox": 0.13, "nh3": 0.35, "po4": 1.0, "p": 3.06},
+    },
+    "photochemical_ozone": {
+        "name": "CML-style Photochemical Ozone Creation",
+        "method_tuple": ["DEMO", "CML-style", "Photochemical Ozone Creation"],
+        "unit": "kg NMVOC-Eq",
+        "cfs": {"nmvoc": 1.0, "ch4": 0.007, "so2": 0.05, "co": 0.04},
+    },
+    "ozone_depletion": {
+        "name": "CML-style Ozone Depletion",
+        "method_tuple": ["DEMO", "CML-style", "Ozone Depletion"],
+        "unit": "kg CFC-11-Eq",
+        "cfs": {"cfc11": 1.0, "n2o": 0.017},
+    },
+    "abiotic_depletion_fossil": {
+        "name": "CML-style Abiotic Depletion (Fossil)",
+        "method_tuple": ["DEMO", "CML-style", "Abiotic Depletion Fossil"],
+        "unit": "MJ",
+        "cfs": {"crude_oil": 42.5, "ch4": 50.0},
+    },
 }
 
 INITIAL_SPECS = {
     "electricity_grid_sa": {
         "name": "Electricity, grid mix (SA)", "unit": "kilowatt hour", "location": "SA",
-        "emissions": {"co2": 0.57, "ch4": 0.0008, "so2": 0.0011, "nox": 0.0009}, "technosphere": {},
+        "emissions": {"co2": 0.57, "ch4": 0.0008, "so2": 0.0011, "nox": 0.0009, "co": 0.0001}, "technosphere": {},
     },
     "natural_gas_heat": {
         "name": "Heat, natural gas", "unit": "kilowatt hour", "location": "SA",
-        "emissions": {"co2": 0.20, "ch4": 0.0005, "nox": 0.0002}, "technosphere": {},
+        "emissions": {"co2": 0.20, "ch4": 0.0005, "nox": 0.0002, "co": 0.00005}, "technosphere": {},
     },
     "crude_oil": {
         "name": "Crude oil, at refinery gate", "unit": "kilogram", "location": "GLO",
-        "emissions": {"co2": 0.45, "ch4": 0.004, "so2": 0.0006, "nox": 0.0005}, "technosphere": {},
+        "emissions": {"co2": 0.45, "ch4": 0.004, "so2": 0.0006, "nox": 0.0005, "nmvoc": 0.0008, "co": 0.0002}, "technosphere": {},
     },
     "hydrogen_smr": {
         "name": "Hydrogen, steam reforming", "unit": "kilogram", "location": "GLO",
-        "emissions": {"co2": 9.0, "ch4": 0.02}, "technosphere": {"electricity_grid_sa": 0.5},
+        "emissions": {"co2": 9.0, "ch4": 0.02, "co": 0.001}, "technosphere": {"electricity_grid_sa": 0.5},
     },
     "steel_low_alloy": {
         "name": "Steel, low-alloyed", "unit": "kilogram", "location": "GLO",
-        "emissions": {"co2": 1.9, "ch4": 0.004}, "technosphere": {"electricity_grid_sa": 0.4},
+        "emissions": {"co2": 1.9, "ch4": 0.004, "so2": 0.001}, "technosphere": {"electricity_grid_sa": 0.4},
     },
     "aluminium_primary": {
         "name": "Aluminium, primary", "unit": "kilogram", "location": "GLO",
-        "emissions": {"co2": 6.5, "n2o": 0.0002}, "technosphere": {"electricity_grid_sa": 14.0},
+        "emissions": {"co2": 6.5, "n2o": 0.0002, "so2": 0.003}, "technosphere": {"electricity_grid_sa": 14.0},
     },
     "polypropylene": {
         "name": "Polypropylene granulate", "unit": "kilogram", "location": "GLO",
-        "emissions": {"co2": 1.6, "ch4": 0.01}, "technosphere": {},
+        "emissions": {"co2": 1.6, "ch4": 0.01, "nmvoc": 0.002}, "technosphere": {},
     },
     "truck_16t": {
         "name": "Transport, truck 16t", "unit": "ton kilometer", "location": "RoW",
-        "emissions": {"co2": 0.11, "n2o": 0.000003, "nox": 0.0004}, "technosphere": {},
+        "emissions": {"co2": 0.11, "n2o": 0.000003, "nox": 0.0004, "nmvoc": 0.00005, "co": 0.0001}, "technosphere": {},
     },
     "rail_freight": {
         "name": "Transport, freight train", "unit": "ton kilometer", "location": "RoW",
@@ -254,7 +283,7 @@ INITIAL_SPECS = {
     },
     "wastewater_treatment": {
         "name": "Wastewater treatment", "unit": "cubic meter", "location": "SA",
-        "emissions": {"co2": 0.35, "ch4": 0.02, "nh3": 0.001}, "technosphere": {"electricity_grid_sa": 0.4},
+        "emissions": {"co2": 0.35, "ch4": 0.02, "nh3": 0.001, "po4": 0.0004, "p": 0.0001}, "technosphere": {"electricity_grid_sa": 0.4},
     },
     "hazardous_waste_incineration": {
         "name": "Hazardous waste incineration", "unit": "kilogram", "location": "SA",
@@ -263,16 +292,36 @@ INITIAL_SPECS = {
 }
 
 INITIAL_UNITS = [
+    # Mass
     {"code": "kg_to_kg", "from_unit": "kg", "to_unit": "kilogram", "factor": 1.0, "dimension": "mass"},
     {"code": "tonne_to_kg", "from_unit": "tonne", "to_unit": "kilogram", "factor": 1000.0, "dimension": "mass"},
     {"code": "t_to_kg", "from_unit": "t", "to_unit": "kilogram", "factor": 1000.0, "dimension": "mass"},
     {"code": "g_to_kg", "from_unit": "g", "to_unit": "kilogram", "factor": 0.001, "dimension": "mass"},
+    {"code": "mg_to_kg", "from_unit": "mg", "to_unit": "kilogram", "factor": 0.000001, "dimension": "mass"},
+    {"code": "lb_to_kg", "from_unit": "lb", "to_unit": "kilogram", "factor": 0.45359237, "dimension": "mass"},
+    {"code": "oz_to_kg", "from_unit": "oz", "to_unit": "kilogram", "factor": 0.0283495, "dimension": "mass"},
+    # Energy
     {"code": "kwh_to_kwh", "from_unit": "kWh", "to_unit": "kilowatt hour", "factor": 1.0, "dimension": "energy"},
+    {"code": "wh_to_kwh", "from_unit": "Wh", "to_unit": "kilowatt hour", "factor": 0.001, "dimension": "energy"},
+    {"code": "mwh_to_kwh", "from_unit": "MWh", "to_unit": "kilowatt hour", "factor": 1000.0, "dimension": "energy"},
     {"code": "mj_to_kwh", "from_unit": "MJ", "to_unit": "kilowatt hour", "factor": 0.277778, "dimension": "energy"},
+    {"code": "gj_to_kwh", "from_unit": "GJ", "to_unit": "kilowatt hour", "factor": 277.778, "dimension": "energy"},
+    {"code": "btu_to_kwh", "from_unit": "BTU", "to_unit": "kilowatt hour", "factor": 0.000293071, "dimension": "energy"},
+    {"code": "kcal_to_kwh", "from_unit": "kcal", "to_unit": "kilowatt hour", "factor": 0.00116222, "dimension": "energy"},
+    # Volume
     {"code": "m3_to_m3", "from_unit": "m3", "to_unit": "cubic meter", "factor": 1.0, "dimension": "volume"},
     {"code": "liter_to_m3", "from_unit": "L", "to_unit": "cubic meter", "factor": 0.001, "dimension": "volume"},
+    {"code": "ml_to_m3", "from_unit": "ml", "to_unit": "cubic meter", "factor": 0.000001, "dimension": "volume"},
+    {"code": "gal_to_m3", "from_unit": "gal", "to_unit": "cubic meter", "factor": 0.00378541, "dimension": "volume"},
+    {"code": "bbl_to_m3", "from_unit": "bbl", "to_unit": "cubic meter", "factor": 0.1589873, "dimension": "volume"},
+    # Distance
     {"code": "km_to_km", "from_unit": "km", "to_unit": "kilometer", "factor": 1.0, "dimension": "distance"},
+    {"code": "m_to_km", "from_unit": "m", "to_unit": "kilometer", "factor": 0.001, "dimension": "distance"},
+    {"code": "mile_to_km", "from_unit": "mile", "to_unit": "kilometer", "factor": 1.60934, "dimension": "distance"},
+    {"code": "mi_to_km", "from_unit": "mi", "to_unit": "kilometer", "factor": 1.60934, "dimension": "distance"},
+    # Transport
     {"code": "tkm_to_tkm", "from_unit": "tkm", "to_unit": "ton kilometer", "factor": 1.0, "dimension": "transport"},
+    {"code": "kgkm_to_tkm", "from_unit": "kgkm", "to_unit": "ton kilometer", "factor": 0.001, "dimension": "transport"},
 ]
 
 
@@ -282,7 +331,7 @@ INITIAL_UNITS = [
 
 
 def init_db(database_url: str | None = None) -> str:
-    """Initialize all 5 tables and seed with initial data if empty."""
+    """Initialize all 5 tables and seed with initial data idempotently."""
     global engine, SessionLocal, active_db_type
 
     if database_url:
@@ -301,12 +350,13 @@ def init_db(database_url: str | None = None) -> str:
 
     Base.metadata.create_all(bind=engine)
 
-    # Seed default data if empty
+    # Seed default data (insert missing items idempotently)
     db = SessionLocal()
     try:
-        # 1. Flows
-        if db.query(LcaFlowRecord).count() == 0:
-            for code, info in INITIAL_FLOWS.items():
+        # 1. Flows (insert any missing)
+        existing_flow_codes = {r.code for r in db.query(LcaFlowRecord.code).all()}
+        for code, info in INITIAL_FLOWS.items():
+            if code not in existing_flow_codes:
                 db.add(LcaFlowRecord(
                     code=code,
                     name=info["name"],
@@ -314,11 +364,11 @@ def init_db(database_url: str | None = None) -> str:
                     categories=info["categories"],
                     flow_type="emission",
                 ))
-            db.commit()
 
-        # 2. Methods
-        if db.query(LcaMethodRecord).count() == 0:
-            for key, info in INITIAL_METHODS.items():
+        # 2. Methods (insert any missing)
+        existing_method_keys = {r.key for r in db.query(LcaMethodRecord.key).all()}
+        for key, info in INITIAL_METHODS.items():
+            if key not in existing_method_keys:
                 db.add(LcaMethodRecord(
                     key=key,
                     name=info["name"],
@@ -326,11 +376,11 @@ def init_db(database_url: str | None = None) -> str:
                     unit=info["unit"],
                     cfs=info["cfs"],
                 ))
-            db.commit()
 
-        # 3. Activities
-        if db.query(LcaActivityRecord).count() == 0:
-            for code, info in INITIAL_SPECS.items():
+        # 3. Activities (insert any missing)
+        existing_activity_codes = {r.code for r in db.query(LcaActivityRecord.code).all()}
+        for code, info in INITIAL_SPECS.items():
+            if code not in existing_activity_codes:
                 db.add(LcaActivityRecord(
                     code=code,
                     name=info["name"],
@@ -339,11 +389,11 @@ def init_db(database_url: str | None = None) -> str:
                     emissions=info["emissions"],
                     technosphere=info["technosphere"],
                 ))
-            db.commit()
 
-        # 4. Units
-        if db.query(UnitConversionRecord).count() == 0:
-            for u in INITIAL_UNITS:
+        # 4. Units (insert any missing)
+        existing_unit_codes = {r.code for r in db.query(UnitConversionRecord.code).all()}
+        for u in INITIAL_UNITS:
+            if u["code"] not in existing_unit_codes:
                 db.add(UnitConversionRecord(
                     code=u["code"],
                     from_unit=u["from_unit"],
@@ -351,7 +401,8 @@ def init_db(database_url: str | None = None) -> str:
                     factor=u["factor"],
                     dimension=u["dimension"],
                 ))
-            db.commit()
+
+        db.commit()
 
     except Exception as err:
         db.rollback()
@@ -589,6 +640,131 @@ def delete_unit_db(code: str) -> bool:
         return True
     finally:
         db.close()
+
+
+def normalize_unit_str(u: str) -> str:
+    """Normalize unit string to canonical short code."""
+    if not u:
+        return ""
+    clean = str(u).strip().lower().replace("_", " ").replace("-", " ")
+    clean = " ".join(clean.split())
+    ALIASES = {
+        "kilogram": "kg", "kilograms": "kg", "kgs": "kg",
+        "gram": "g", "grams": "g",
+        "milligram": "mg", "milligrams": "mg",
+        "metric ton": "t", "metric tonne": "t", "ton": "t", "tonne": "t", "tonnes": "t", "tons": "t",
+        "pound": "lb", "pounds": "lb", "lbs": "lb",
+        "ounce": "oz", "ounces": "oz",
+        "kilowatt hour": "kwh", "kilowatt-hour": "kwh", "kilowatthour": "kwh",
+        "watt hour": "wh", "watthour": "wh",
+        "megawatt hour": "mwh", "megawatthour": "mwh",
+        "megajoule": "mj", "megajoules": "mj",
+        "gigajoule": "gj", "gigajoules": "gj",
+        "joule": "j", "joules": "j",
+        "cubic meter": "m3", "cubic metre": "m3", "m^3": "m3",
+        "liter": "l", "liters": "l", "litre": "l", "litres": "l",
+        "milliliter": "ml", "milliliters": "ml",
+        "gallon": "gal", "gallons": "gal",
+        "barrel": "bbl", "barrels": "bbl",
+        "kilometer": "km", "kilometers": "km", "kilometre": "km",
+        "meter": "m", "meters": "m", "metre": "m",
+        "mile": "mi", "miles": "mi",
+        "ton kilometer": "tkm", "ton-kilometer": "tkm", "ton-km": "tkm", "tonne-km": "tkm", "tonne kilometer": "tkm",
+    }
+    return ALIASES.get(clean, clean)
+
+
+# SI Standard Fallback table (relative to canonical SI base unit per dimension)
+SI_BASE_FACTORS: dict[str, tuple[str, float]] = {
+    # dimension: mass -> base 'kg'
+    "kg": ("mass", 1.0),
+    "g": ("mass", 0.001),
+    "mg": ("mass", 0.000001),
+    "t": ("mass", 1000.0),
+    "tonne": ("mass", 1000.0),
+    "lb": ("mass", 0.45359237),
+    "oz": ("mass", 0.0283495),
+
+    # dimension: energy -> base 'kwh'
+    "kwh": ("energy", 1.0),
+    "wh": ("energy", 0.001),
+    "mwh": ("energy", 1000.0),
+    "mj": ("energy", 0.2777777778),
+    "gj": ("energy", 277.7777778),
+    "j": ("energy", 2.777777778e-7),
+    "btu": ("energy", 0.000293071),
+    "kcal": ("energy", 0.00116222),
+
+    # dimension: volume -> base 'm3'
+    "m3": ("volume", 1.0),
+    "l": ("volume", 0.001),
+    "ml": ("volume", 0.000001),
+    "gal": ("volume", 0.00378541),
+    "bbl": ("volume", 0.1589873),
+
+    # dimension: distance -> base 'km'
+    "km": ("distance", 1.0),
+    "m": ("distance", 0.001),
+    "mi": ("distance", 1.60934),
+
+    # dimension: transport -> base 'tkm'
+    "tkm": ("transport", 1.0),
+    "kgkm": ("transport", 0.001),
+}
+
+
+def convert_unit_db(amount: float, from_unit: str, to_unit: str) -> float:
+    """Convert an amount from from_unit to to_unit using PostgreSQL unit_conversion
+    table, bridging standard units, and SI physical dimension fallback.
+    """
+    if amount == 0.0:
+        return 0.0
+
+    f_norm = normalize_unit_str(from_unit)
+    t_norm = normalize_unit_str(to_unit)
+
+    if not f_norm or not t_norm or f_norm == t_norm:
+        return float(amount)
+
+    # 1. Try querying unit_conversion table directly
+    db = SessionLocal()
+    try:
+        # Direct conversion
+        rec = db.query(UnitConversionRecord).filter(
+            (UnitConversionRecord.from_unit.ilike(f_norm)) & (UnitConversionRecord.to_unit.ilike(t_norm))
+        ).first()
+        if rec and rec.factor:
+            return float(amount) * float(rec.factor)
+
+        # Reverse conversion
+        rev_rec = db.query(UnitConversionRecord).filter(
+            (UnitConversionRecord.from_unit.ilike(t_norm)) & (UnitConversionRecord.to_unit.ilike(f_norm))
+        ).first()
+        if rev_rec and rev_rec.factor and rev_rec.factor > 0:
+            return float(amount) * (1.0 / float(rev_rec.factor))
+
+        # Bridged conversion (both convert to same standard unit in DB)
+        all_recs = db.query(UnitConversionRecord).all()
+        f_to_std = next((r for r in all_recs if normalize_unit_str(r.from_unit) == f_norm), None)
+        t_to_std = next((r for r in all_recs if normalize_unit_str(r.from_unit) == t_norm), None)
+        if f_to_std and t_to_std and normalize_unit_str(f_to_std.to_unit) == normalize_unit_str(t_to_std.to_unit):
+            return float(amount) * (float(f_to_std.factor) / float(t_to_std.factor))
+    except Exception:
+        pass
+    finally:
+        db.close()
+
+    # 2. SI standard dictionary fallback
+    if f_norm in SI_BASE_FACTORS and t_norm in SI_BASE_FACTORS:
+        f_dim, f_factor = SI_BASE_FACTORS[f_norm]
+        t_dim, t_factor = SI_BASE_FACTORS[t_norm]
+        if f_dim != t_dim:
+            raise ValueError(f"Unit dimension mismatch: cannot convert '{from_unit}' ({f_dim}) to '{to_unit}' ({t_dim})")
+        return float(amount) * (f_factor / t_factor)
+
+    # If completely unknown, return original amount with warning
+    print(f"Notice: No unit conversion factor found for '{from_unit}' -> '{to_unit}'. Using 1:1.")
+    return float(amount)
 
 
 # ---------------------------------------------------------------------------

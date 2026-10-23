@@ -528,6 +528,66 @@ def test_v1_lca_calculate_and_runs():
     assert r_data["summary"]["gwp100"] == data["summary"]["gwp100"]
 
 
+def test_v1_unit_conversion_auto_wiring():
+    """Verify that inputs passed in different SI units (e.g. grams vs kg) automatically convert."""
+    payload_grams = {
+        "product": {"name": "Diesel, refinery gate", "functional_unit": "1 kg"},
+        "allocation": {"method": "mass"},
+        "inputs": [
+            {"name": "Crude oil", "key": "crude_oil", "amount": 1150.0, "unit": "g"},  # 1150 grams = 1.15 kg
+            {"name": "Process electricity", "key": "electricity_grid_sa", "amount": 120.0, "unit": "Wh"},  # 120 Wh = 0.12 kWh
+            {"name": "Process heat", "key": "natural_gas_heat", "amount": 2.88, "unit": "MJ"},  # 2.88 MJ = 0.8 kWh
+            {"name": "Hydrogen", "key": "hydrogen_smr", "amount": 20.0, "unit": "g"},  # 20 grams = 0.02 kg
+            {"name": "Transport", "key": "truck_16t", "mass": 1150.0, "mass_unit": "g", "distance_km": 300}
+        ],
+        "outputs": [
+            {"type": "product", "name": "Diesel", "amount": 1.0, "unit": "kg"},
+            {"type": "co_product", "name": "Gasoline", "amount": 0.35, "unit": "kg"},
+            {"type": "co_product", "name": "LPG", "amount": 0.12, "unit": "kg"},
+            {"type": "emission", "flow": "co2", "amount": 220.0, "unit": "g"},  # 220 g = 0.22 kg
+            {"type": "waste", "key": "wastewater_treatment", "amount": 3.0, "unit": "L"}  # 3 L = 0.003 m3
+        ]
+    }
+    res = client.post("/v1/lca/calculate", json=payload_grams)
+    assert res.status_code == 200, res.text
+    data = res.json()
+    assert abs(data["summary"]["gwp100"] - 0.9422) < 0.05
+    assert data["allocation"]["allocation_percentage"] == 68.03
+
+
+def test_v1_energy_allocation_and_midpoints():
+    """Verify ISO 14044 Energy allocation by Net Calorific Value (LHV) and multi-method midpoints."""
+    payload_energy = {
+        "product": {"name": "Diesel, refinery gate", "functional_unit": "1 kg"},
+        "allocation": {"method": "energy"},
+        "inputs": [
+            {"name": "Crude oil", "key": "crude_oil", "amount": 1.15, "unit": "kg"},
+            {"name": "Process electricity", "key": "electricity_grid_sa", "amount": 0.12, "unit": "kWh"}
+        ],
+        "outputs": [
+            {"type": "product", "name": "Diesel", "amount": 1.0, "unit": "kg", "lhv": 43.0},
+            {"type": "co_product", "name": "Gasoline", "amount": 0.35, "unit": "kg", "lhv": 44.0},
+            {"type": "co_product", "name": "LPG", "amount": 0.12, "unit": "kg", "lhv": 46.1}
+        ]
+    }
+    res = client.post("/v1/lca/calculate", json=payload_energy)
+    assert res.status_code == 200, res.text
+    data = res.json()
+
+    alloc = data["allocation"]
+    assert alloc["method"] == "energy"
+    assert abs(alloc["allocation_factor"] - 0.6725896) < 1e-4
+    assert alloc["allocation_percentage"] == 67.26
+    assert alloc["main_product_energy_mj"] == 43.0
+    assert abs(alloc["total_system_energy_mj"] - 63.932) < 0.01
+
+    # Check that all 6 midpoints are calculated
+    summary = data["summary"]
+    for expected_method in ["gwp100", "acidification", "eutrophication", "photochemical_ozone", "ozone_depletion", "abiotic_depletion_fossil"]:
+        assert expected_method in summary, f"Missing method {expected_method} in summary"
+        assert isinstance(summary[expected_method], (int, float))
+
+
 if __name__ == "__main__":
     print("=" * 60)
     print("RUNNING FASTAPI REST API INTEGRATION TESTS")
@@ -543,6 +603,8 @@ if __name__ == "__main__":
         ("V1 Reference Data (Units, Flows, Methods, Activities)", test_v1_reference_data),
         ("V1 Unit & Activity CRUD", test_v1_unit_and_activity_crud),
         ("V1 LCA Calculate & Runs Audit Log", test_v1_lca_calculate_and_runs),
+        ("V1 Unit Conversion Auto-Wiring", test_v1_unit_conversion_auto_wiring),
+        ("V1 ISO 14044 Energy Allocation & Midpoints", test_v1_energy_allocation_and_midpoints),
     ]
 
     passed = 0

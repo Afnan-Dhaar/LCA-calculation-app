@@ -871,8 +871,11 @@ def sync_pcf_lca_project(force: bool = False) -> None:
     bd.projects.set_current(PCF_PROJECT)
 
     if not force and PCF_BIO in bd.databases and PCF_DB in bd.databases:
-        # Check if already initialized
-        return
+        # Check if already initialized with current methods count
+        db_methods_count = len(db.get_all_methods_db())
+        current_bw_methods = [m for m in bd.methods if m[0] in ["IPCC AR6", "DEMO"]]
+        if len(current_bw_methods) >= db_methods_count:
+            return
 
     # Clear old databases
     for name in (PCF_BIO, PCF_DB, PCF_SCRATCH):
@@ -883,6 +886,7 @@ def sync_pcf_lca_project(force: bool = False) -> None:
     flows = db.get_all_flows_db()
     methods = db.get_all_methods_db()
     activities = db.get_all_activities_db()
+    valid_flow_codes = {f["code"] for f in flows}
 
     # Deregister existing methods in project
     for m in methods:
@@ -906,7 +910,11 @@ def sync_pcf_lca_project(force: bool = False) -> None:
         mt = tuple(m["method_tuple"])
         bm = bd.Method(mt)
         bm.register(unit=m["unit"])
-        bm.write([((PCF_BIO, flow_code), factor) for flow_code, factor in m["cfs"].items()])
+        bm.write([
+            ((PCF_BIO, flow_code), factor)
+            for flow_code, factor in m["cfs"].items()
+            if flow_code in valid_flow_codes
+        ])
 
     # 4. Write Technosphere Activities Database (lca_db)
     data = {}
@@ -938,14 +946,59 @@ def sync_pcf_lca_project(force: bool = False) -> None:
         bd.Database(PCF_SCRATCH).register()
 
 
+LHV_DEFAULTS: dict[str, float] = {
+    "diesel": 43.0,
+    "diesel, refinery gate": 43.0,
+    "gasoline": 44.0,
+    "petrol": 44.0,
+    "lpg": 46.1,
+    "liquefied petroleum gas": 46.1,
+    "crude_oil": 42.5,
+    "crude oil": 42.5,
+    "natural_gas": 48.0,
+    "natural gas": 48.0,
+    "methane": 50.0,
+    "hydrogen": 120.0,
+    "heavy fuel oil": 40.5,
+    "fuel oil": 40.5,
+    "kerosene": 43.5,
+    "jet fuel": 43.5,
+    "naphtha": 44.5,
+    "coal": 24.0,
+    "biomass": 17.5,
+    "wood pellets": 18.0,
+    "electricity": 3.6,
+}
+
+
+def get_output_lhv(item: dict[str, Any]) -> float:
+    """Retrieve Lower Heating Value / Net Calorific Value (in MJ/kg or MJ/unit)."""
+    if "lhv" in item:
+        return float(item["lhv"])
+    if "energy_density" in item:
+        return float(item["energy_density"])
+    name = str(item.get("name", "")).lower().strip()
+    for k, v in LHV_DEFAULTS.items():
+        if k in name:
+            return v
+    return 42.0
+
+
 def calculate_pcf_lca(payload: dict[str, Any]) -> dict[str, Any]:
-    """Execute dynamic multi-method LCA on a raw PCF payload (with co-product allocation)
-    using the dynamic PostgreSQL-backed Brightway model.
+    """Execute dynamic multi-method LCA on a raw PCF payload with:
+    1. ISO 14044 Allocation: Mass, Economic, and Energy (LHV Net Calorific Value)
+    2. Dynamic Unit Conversion pipeline across all inputs, transport, waste, and emissions
+    3. Thread-safe execution using isolated scratch database (lca_runs)
+    4. Comprehensive characterized impacts across all configured LCIA methods
     """
     import db
 
     sync_pcf_lca_project(force=False)
     bd.projects.set_current(PCF_PROJECT)
+
+    scratch_db = bd.Database(PCF_SCRATCH)
+    if PCF_SCRATCH not in bd.databases:
+        scratch_db.register()
 
     lca_db = bd.Database(PCF_DB)
     lca_bio = bd.Database(PCF_BIO)
@@ -955,9 +1008,9 @@ def calculate_pcf_lca(payload: dict[str, Any]) -> dict[str, Any]:
     product_name = prod_data.get("name", "Product")
     fu_str = prod_data.get("functional_unit", "1 kg")
 
-    # 2. Allocation Calculation (ISO 14044)
+    # 2. Allocation Calculation (ISO 14044: Mass, Economic, Energy / LHV)
     alloc_data = payload.get("allocation") or {}
-    alloc_method = alloc_data.get("method", "mass").lower()
+    alloc_method = str(alloc_data.get("method", "mass")).lower().strip()
 
     outputs = payload.get("outputs") or []
     main_prod = next((o for o in outputs if o.get("type") == "product"), None)
@@ -971,20 +1024,31 @@ def calculate_pcf_lca(payload: dict[str, Any]) -> dict[str, Any]:
     alloc_factor = 1.0
     total_mass = main_amount + sum(float(cp.get("amount", 0.0)) for cp in co_prods)
 
+    main_energy: float | None = None
+    total_energy: float | None = None
+
     if co_prods:
-        if alloc_method == "mass":
-            alloc_factor = (main_amount / total_mass) if total_mass > 0 else 1.0
+        if alloc_method in ["energy", "lhv", "calorific"]:
+            main_lhv = get_output_lhv(main_prod) if main_prod else 43.0
+            main_energy = main_amount * main_lhv
+            co_energy = sum(float(cp.get("amount", 0.0)) * get_output_lhv(cp) for cp in co_prods)
+            total_energy = main_energy + co_energy
+            alloc_factor = (main_energy / total_energy) if total_energy > 0 else 1.0
         elif alloc_method == "economic":
             total_rev = (main_amount * main_price) + sum(
                 float(cp.get("amount", 0.0)) * float(cp.get("price", 1.0)) for cp in co_prods
             )
             alloc_factor = ((main_amount * main_price) / total_rev) if total_rev > 0 else 1.0
+        else:
+            # Default to ISO 14044 mass allocation
+            alloc_factor = (main_amount / total_mass) if total_mass > 0 else 1.0
 
-    # 3. Create foreground activity for calculation
+    # 3. Create foreground activity in dedicated scratch database (lca_runs)
+    # This keeps lca_db immutable, preventing concurrency collisions and file locks
     run_id = f"run_{uuid.uuid4().hex[:12]}"
     act_code = f"eval_{run_id}"
 
-    act = lca_db.new_activity(
+    act = scratch_db.new_activity(
         code=act_code,
         name=product_name,
         unit="kilogram",
@@ -995,17 +1059,21 @@ def calculate_pcf_lca(payload: dict[str, Any]) -> dict[str, Any]:
     # Track components for hotspot breakdown
     component_activities: list[tuple[str, str, Any, float]] = []
 
-    # Add Inputs
+    # Add Inputs with automatic unit conversion
     for inp in payload.get("inputs") or []:
         raw_amt = float(inp.get("amount", inp.get("mass", 0.0)))
-        allocated_amt = raw_amt * alloc_factor
+        input_unit = inp.get("unit") or inp.get("mass_unit")
 
         if "distance_km" in inp or "distance" in inp:
-            dist = float(inp.get("distance_km", inp.get("distance", 0.0)))
-            mass_kg = raw_amt
-            if inp.get("mass_unit", inp.get("unit", "kg")).lower() in ["t", "tonne", "ton"]:
-                mass_kg *= 1000.0
-            tkm = (mass_kg / 1000.0) * dist
+            dist_val = float(inp.get("distance_km", inp.get("distance", 0.0)))
+            dist_unit = inp.get("distance_unit", "km")
+            dist_km = db.convert_unit_db(dist_val, dist_unit, "km")
+
+            mass_val = raw_amt
+            mass_u = input_unit or "kg"
+            mass_kg = db.convert_unit_db(mass_val, mass_u, "kg")
+
+            tkm = (mass_kg / 1000.0) * dist_km
             allocated_tkm = tkm * alloc_factor
             mode_key = inp.get("key", "truck_16t")
 
@@ -1019,29 +1087,40 @@ def calculate_pcf_lca(payload: dict[str, Any]) -> dict[str, Any]:
             flow_key = inp.get("key", inp.get("name"))
             try:
                 in_act = lca_db.get(flow_key)
+                expected_unit = in_act.get("unit", "kilogram")
+                converted_amt = db.convert_unit_db(raw_amt, input_unit or expected_unit, expected_unit)
+                allocated_amt = converted_amt * alloc_factor
                 act.new_exchange(input=in_act.key, amount=allocated_amt, type="technosphere").save()
                 component_activities.append(("technosphere", inp.get("name", flow_key), in_act, allocated_amt))
             except Exception:
                 pass
 
-    # Add Waste treatments
+    # Add Waste treatments with automatic unit conversion
     for w in wastes:
         waste_key = w.get("key", w.get("name"))
-        w_amt = float(w.get("amount", 0.0)) * alloc_factor
+        raw_w_amt = float(w.get("amount", 0.0))
+        w_unit = w.get("unit")
         try:
             w_act = lca_db.get(waste_key)
+            expected_w_unit = w_act.get("unit", "cubic meter")
+            converted_w_amt = db.convert_unit_db(raw_w_amt, w_unit or expected_w_unit, expected_w_unit)
+            w_amt = converted_w_amt * alloc_factor
             act.new_exchange(input=w_act.key, amount=w_amt, type="technosphere").save()
             component_activities.append(("technosphere", w.get("name", waste_key), w_act, w_amt))
         except Exception:
             pass
 
-    # Add Direct Emissions
+    # Add Direct Emissions with automatic unit conversion
     direct_emissions_list: list[tuple[str, str, float]] = []
     for em in emissions:
         flow_code = em.get("flow", em.get("key", em.get("name", ""))).lower().strip()
-        em_amt = float(em.get("amount", 0.0)) * alloc_factor
+        raw_em_amt = float(em.get("amount", 0.0))
+        em_unit = em.get("unit")
         try:
             b_flow = lca_bio.get(flow_code)
+            expected_em_unit = b_flow.get("unit", "kilogram")
+            converted_em_amt = db.convert_unit_db(raw_em_amt, em_unit or expected_em_unit, expected_em_unit)
+            em_amt = converted_em_amt * alloc_factor
             act.new_exchange(input=b_flow.key, amount=em_amt, type="biosphere").save()
             direct_emissions_list.append((em.get("name", flow_code), flow_code, em_amt))
         except Exception:
@@ -1049,7 +1128,7 @@ def calculate_pcf_lca(payload: dict[str, Any]) -> dict[str, Any]:
 
     act.save()
 
-    # 4. Multi-Method Impact Calculation
+    # 4. Multi-Method Impact Calculation across all configured methods
     configured_methods = db.get_all_methods_db()
     summary: dict[str, float] = {}
     hotspots: list[dict[str, Any]] = []
@@ -1058,10 +1137,11 @@ def calculate_pcf_lca(payload: dict[str, Any]) -> dict[str, Any]:
         # Solve each LCIA method
         for m in configured_methods:
             mt = tuple(m["method_tuple"])
-            lca = bc.LCA({act: 1.0}, method=mt)
-            lca.lci()
-            lca.lcia()
-            summary[m["key"]] = float(lca.score)
+            if mt in bd.methods:
+                lca = bc.LCA({act: 1.0}, method=mt)
+                lca.lci()
+                lca.lcia()
+                summary[m["key"]] = float(lca.score)
 
         # Build detailed hotspot rankings for GWP100
         gwp_info = next((m for m in configured_methods if m["key"] == "gwp100"), configured_methods[0])
@@ -1102,7 +1182,7 @@ def calculate_pcf_lca(payload: dict[str, Any]) -> dict[str, Any]:
         hotspots.sort(key=lambda x: x["score"], reverse=True)
 
     finally:
-        # Clean up temporary run activity from database
+        # Clean up temporary foreground activity from scratch database
         try:
             act.delete()
         except Exception:
@@ -1129,11 +1209,22 @@ def calculate_pcf_lca(payload: dict[str, Any]) -> dict[str, Any]:
             "allocation_percentage": round(alloc_factor * 100, 2),
             "target_product_amount": main_amount,
             "total_system_mass": total_mass,
+            "main_product_energy_mj": round(main_energy, 4) if main_energy is not None else None,
+            "total_system_energy_mj": round(total_energy, 4) if total_energy is not None else None,
             "co_products": [
                 {
                     "name": cp.get("name"),
                     "amount": float(cp.get("amount", 0.0)),
                     "share_pct": round((float(cp.get("amount", 0.0)) / total_mass) * 100, 2) if total_mass > 0 else 0,
+                    **(
+                        {
+                            "lhv_mj_per_unit": get_output_lhv(cp),
+                            "energy_mj": round(float(cp.get("amount", 0.0)) * get_output_lhv(cp), 4),
+                            "energy_share_pct": round(((float(cp.get("amount", 0.0)) * get_output_lhv(cp)) / total_energy) * 100, 2) if total_energy and total_energy > 0 else 0,
+                        }
+                        if total_energy is not None
+                        else {}
+                    ),
                 }
                 for cp in co_prods
             ],
