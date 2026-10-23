@@ -44,16 +44,26 @@ from product_model import (
 # --------------------------------------------------
 
 app = FastAPI(
-    title="Brightway Product LCA API",
+    title="PCF LCA API (Brightway)",
     description=(
-        "REST API service for dynamic, multi-process Life Cycle Assessment (LCA) powered by Brightway. "
-        "Allows external applications, dashboards, and enterprise tools to model product supply chains, "
-        "manage life-cycle stages, and compute characterized environmental impacts and hotspots in real-time."
+        "Enterprise Life Cycle Assessment & Product Carbon Footprint microservice powered by Brightway 2.5 and PostgreSQL. "
+        "Dynamic background database management for flows, activities, methods, and calculation runs."
     ),
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
 )
+
+
+@app.on_event("startup")
+def startup_event():
+    """Ensure database tables and Brightway project are synchronized on boot."""
+    try:
+        database.init_db()
+        import brightway_engine
+        brightway_engine.sync_pcf_lca_project(force=False)
+    except Exception as err:
+        print(f"Startup synchronization notice: {err}")
 
 # Enable CORS for external frontend or microservice integration
 app.add_middleware(
@@ -100,6 +110,44 @@ class ProductSchema(BaseModel):
     functional_unit_amount: float = Field(default=1.0, gt=0.0, description="Reference amount for LCA functional unit")
     functional_unit: str = Field(default="unit", description="Reference unit of analysis (e.g. unit, kg, piece)")
     processes: list[ProcessSchema] = Field(default_factory=list, description="Multi-stage supply chain processes")
+
+
+# --------------------------------------------------
+# /v1 Dynamic Pydantic Schemas (Matching Senior's API)
+# --------------------------------------------------
+
+
+class UnitSchema(BaseModel):
+    code: str = Field(..., description="Unique unit conversion key, e.g. 'tonne_to_kg'")
+    from_unit: str = Field(..., description="Source unit, e.g. 'tonne'")
+    to_unit: str = Field(..., description="Target unit, e.g. 'kilogram'")
+    factor: float = Field(..., description="Multiplication factor to convert from_unit to to_unit")
+    dimension: str = Field(default="mass", description="Physical dimension (mass, energy, volume, distance)")
+
+
+class FlowSchema(BaseModel):
+    code: str = Field(..., description="Elementary emission code, e.g. 'co2', 'ch4', 'so2'")
+    name: str = Field(..., description="Descriptive flow name, e.g. 'Carbon dioxide, fossil'")
+    unit: str = Field(default="kilogram", description="Unit of elementary flow")
+    categories: str = Field(default="air", description="Environmental compartment: air, water, or soil")
+    flow_type: str = Field(default="emission", description="Flow classification")
+
+
+class MethodSchema(BaseModel):
+    key: str = Field(..., description="Method identifier, e.g. 'gwp100' or 'acidification'")
+    name: str = Field(..., description="Human-readable method title")
+    method_tuple: list[str] = Field(..., description="Brightway hierarchy tuple, e.g. ['IPCC AR6', 'GWP100']")
+    unit: str = Field(default="kg CO2-Eq", description="Characterization impact unit")
+    cfs: dict[str, float] = Field(default_factory=dict, description="Mapping of elementary flow code to characterization factor")
+
+
+class ActivitySchema(BaseModel):
+    code: str = Field(..., description="Activity code, e.g. 'crude_oil', 'electricity_grid_sa'")
+    name: str = Field(..., description="Descriptive activity title")
+    unit: str = Field(..., description="Reference unit, e.g. 'kilogram', 'kilowatt hour', 'ton kilometer'")
+    location: str = Field(default="GLO", description="Geographic coverage: SA, GLO, RoW")
+    emissions: dict[str, float] = Field(default_factory=dict, description="Direct elementary emissions {flow_code: amount}")
+    technosphere: dict[str, float] = Field(default_factory=dict, description="Background upstream inputs {activity_code: amount}")
 
 
 class CalculateLCARequest(BaseModel):
@@ -456,12 +504,149 @@ def get_lca_history(
 @app.get("/api/database/status", tags=["Health"])
 def get_database_status() -> dict[str, Any]:
     """Check database status, connection type (PostgreSQL vs SQLite), and record counts."""
-    return {
-        "active_database": database.active_db_type,
-        "is_postgresql": database.active_db_type == "postgresql",
-        "total_products_stored": len(database.list_products_db()),
-        "total_historical_runs": len(database.list_lca_runs_db(limit=1000)),
-    }
+    return database.get_db_status()
+
+
+# ===========================================================================
+# /v1 API Endpoints (Matching Senior's OpenAPI Tags & Routes)
+# ===========================================================================
+
+# --------------------------------------------------
+# 1. LCA Calculation
+# --------------------------------------------------
+
+
+@app.post("/v1/lca/calculate", tags=["lca"], summary="Calculate")
+def v1_calculate_lca(payload: dict[str, Any]) -> dict[str, Any]:
+    """Calculate cradle-to-gate environmental impacts (GWP100, Acidification)
+    with ISO 14044 co-product mass/economic allocation and PostgreSQL audit logging.
+    """
+    try:
+        import brightway_engine
+        raw = payload.get("product") if (isinstance(payload.get("product"), dict) and "inputs" in payload.get("product")) else payload
+        return brightway_engine.calculate_pcf_lca(raw)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"PCF LCA calculation failed: {str(e)}",
+        )
+
+
+# --------------------------------------------------
+# 2. History & Audit Trail
+# --------------------------------------------------
+
+
+@app.get("/v1/runs", tags=["history"], summary="List Runs")
+def v1_list_runs(limit: int = Query(default=50, ge=1, le=200)) -> list[dict[str, Any]]:
+    """List historical calculation runs stored in PostgreSQL lca_run table."""
+    return database.get_runs_db(limit=limit)
+
+
+@app.get("/v1/runs/{run_id}", tags=["history"], summary="Get Run")
+def v1_get_run(run_id: str) -> dict[str, Any]:
+    """Retrieve full details of a specific calculation run."""
+    run = database.get_run_by_id_db(run_id)
+    if not run:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Run '{run_id}' not found.")
+    return run
+
+
+# --------------------------------------------------
+# 3. Units Management
+# --------------------------------------------------
+
+
+@app.get("/v1/units", tags=["units"], summary="List Units")
+def v1_list_units() -> list[dict[str, Any]]:
+    """List all unit conversion factors stored in PostgreSQL."""
+    return database.get_all_units_db()
+
+
+@app.post("/v1/units", tags=["units"], summary="Upsert Unit")
+def v1_upsert_unit(unit_in: UnitSchema) -> dict[str, Any]:
+    """Create or update a unit conversion factor."""
+    return database.upsert_unit_db(unit_in.model_dump())
+
+
+@app.delete("/v1/units/{code}", tags=["units"], summary="Delete Unit")
+def v1_delete_unit(code: str) -> dict[str, Any]:
+    """Remove a unit conversion factor from database."""
+    ok = database.delete_unit_db(code)
+    if not ok:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Unit '{code}' not found.")
+    return {"status": "success", "deleted_code": code}
+
+
+# --------------------------------------------------
+# 4. Activities Management
+# --------------------------------------------------
+
+
+@app.get("/v1/activities", tags=["activities"], summary="List Activities")
+def v1_list_activities() -> list[dict[str, Any]]:
+    """List all background activities and emission factors stored in PostgreSQL."""
+    return database.get_all_activities_db()
+
+
+@app.post("/v1/activities", tags=["activities"], summary="Upsert Activity")
+def v1_upsert_activity(act_in: ActivitySchema) -> dict[str, Any]:
+    """Create or update a background activity and sync Brightway database."""
+    res = database.upsert_activity_db(act_in.model_dump())
+    import brightway_engine
+    brightway_engine.sync_pcf_lca_project(force=True)
+    return res
+
+
+@app.delete("/v1/activities/{code}", tags=["activities"], summary="Delete Activity")
+def v1_delete_activity(code: str) -> dict[str, Any]:
+    """Remove a background activity from database."""
+    ok = database.delete_activity_db(code)
+    if not ok:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Activity '{code}' not found.")
+    import brightway_engine
+    brightway_engine.sync_pcf_lca_project(force=True)
+    return {"status": "success", "deleted_code": code}
+
+
+# --------------------------------------------------
+# 5. Flows Management
+# --------------------------------------------------
+
+
+@app.get("/v1/flows", tags=["flows"], summary="List Flows")
+def v1_list_flows() -> list[dict[str, Any]]:
+    """List all elementary emissions and biosphere flows in PostgreSQL."""
+    return database.get_all_flows_db()
+
+
+@app.post("/v1/flows", tags=["flows"], summary="Upsert Flow")
+def v1_upsert_flow(flow_in: FlowSchema) -> dict[str, Any]:
+    """Create or update an elementary flow and sync Brightway database."""
+    res = database.upsert_flow_db(flow_in.model_dump())
+    import brightway_engine
+    brightway_engine.sync_pcf_lca_project(force=True)
+    return res
+
+
+# --------------------------------------------------
+# 6. Methods Management
+# --------------------------------------------------
+
+
+@app.get("/v1/methods", tags=["methods"], summary="List Methods")
+def v1_list_methods() -> list[dict[str, Any]]:
+    """List all configured LCIA methods and characterization factors."""
+    return database.get_all_methods_db()
+
+
+@app.post("/v1/methods", tags=["methods"], summary="Upsert Method")
+def v1_upsert_method(method_in: MethodSchema) -> dict[str, Any]:
+    """Create or update an LCIA method and characterization factors."""
+    res = database.upsert_method_db(method_in.model_dump())
+    import brightway_engine
+    brightway_engine.sync_pcf_lca_project(force=True)
+    return res
 
 
 # --------------------------------------------------

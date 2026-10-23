@@ -303,6 +303,231 @@ def test_senior_flat_refinery_payload():
     assert del_res.status_code == 200
 
 
+def test_v1_reference_data():
+    """Test /v1/units, /v1/flows, /v1/methods, /v1/activities."""
+    # 1. Units
+    units_res = client.get("/v1/units")
+    assert units_res.status_code == 200
+    units = units_res.json()
+    assert isinstance(units, list)
+    assert len(units) >= 10
+    assert any(u["from_unit"] == "kg" for u in units)
+
+    # 2. Flows
+    flows_res = client.get("/v1/flows")
+    assert flows_res.status_code == 200
+    flows = flows_res.json()
+    assert isinstance(flows, list)
+    assert len(flows) >= 6
+    assert any(f["code"] == "co2" for f in flows)
+
+    # 3. Methods
+    methods_res = client.get("/v1/methods")
+    assert methods_res.status_code == 200
+    methods = methods_res.json()
+    assert isinstance(methods, list)
+    assert len(methods) >= 2
+    assert any(m["key"] == "gwp100" for m in methods)
+    assert any(m["key"] == "acidification" for m in methods)
+
+    # 4. Activities
+    activities_res = client.get("/v1/activities")
+    assert activities_res.status_code == 200
+    activities = activities_res.json()
+    assert isinstance(activities, list)
+    assert len(activities) >= 13
+    assert any(a["code"] == "crude_oil" for a in activities)
+
+
+def test_v1_unit_and_activity_crud():
+    """Test creating and deleting units and activities via /v1."""
+    # Create custom unit
+    new_unit = {
+        "code": "test_ton_to_kg",
+        "from_unit": "test_ton",
+        "to_unit": "kg",
+        "factor": 1000.0,
+        "dimension": "mass",
+    }
+    c_unit_res = client.post("/v1/units", json=new_unit)
+    assert c_unit_res.status_code == 200
+    assert c_unit_res.json()["status"] == "success"
+
+    # Delete custom unit
+    d_unit_res = client.delete("/v1/units/test_ton_to_kg")
+    assert d_unit_res.status_code == 200
+    assert d_unit_res.json()["status"] == "success"
+
+    # Create custom activity
+    new_act = {
+        "code": "test_biomass",
+        "name": "Biomass pellets test",
+        "unit": "kilogram",
+        "location": "GLO",
+        "emissions": {"co2": 0.02},
+        "technosphere": {"crude_oil": 0.05},
+    }
+    c_act_res = client.post("/v1/activities", json=new_act)
+    assert c_act_res.status_code == 200
+    assert c_act_res.json()["status"] == "success"
+
+    # Delete custom activity
+    d_act_res = client.delete("/v1/activities/test_biomass")
+    assert d_act_res.status_code == 200
+    assert d_act_res.json()["status"] == "success"
+
+
+def test_v1_lca_calculate_and_runs():
+    """Test POST /v1/lca/calculate directly against pgAdmin target values."""
+    senior_refinery_payload = {
+        "product": {
+            "name": "Diesel, refinery gate",
+            "functional_unit": "1 kg of diesel"
+        },
+        "allocation": {
+            "method": "mass"
+        },
+        "inputs": [
+            {
+                "name": "Crude oil",
+                "key": "crude_oil",
+                "stage": "raw_material",
+                "amount": 1.15,
+                "unit": "kg"
+            },
+            {
+                "name": "Process electricity",
+                "key": "electricity_grid_sa",
+                "stage": "manufacturing",
+                "amount": 0.12,
+                "unit": "kWh"
+            },
+            {
+                "name": "Process heat",
+                "key": "natural_gas_heat",
+                "stage": "manufacturing",
+                "amount": 0.8,
+                "unit": "kWh"
+            },
+            {
+                "name": "Hydrogen (hydrotreating)",
+                "key": "hydrogen_smr",
+                "stage": "manufacturing",
+                "amount": 0.02,
+                "unit": "kg"
+            },
+            {
+                "name": "Crude oil transport",
+                "key": "truck_16t",
+                "stage": "transport",
+                "mass": 1.15,
+                "mass_unit": "kg",
+                "distance_km": 300
+            }
+        ],
+        "outputs": [
+            {
+                "type": "product",
+                "name": "Diesel",
+                "amount": 1.0,
+                "unit": "kg",
+                "price": 1.0
+            },
+            {
+                "type": "co_product",
+                "name": "Gasoline",
+                "amount": 0.35,
+                "unit": "kg",
+                "price": 1.1
+            },
+            {
+                "type": "co_product",
+                "name": "LPG",
+                "amount": 0.12,
+                "unit": "kg",
+                "price": 0.9
+            },
+            {
+                "type": "emission",
+                "name": "Flue gas CO2",
+                "flow": "co2",
+                "amount": 0.22,
+                "unit": "kg"
+            },
+            {
+                "type": "emission",
+                "name": "Flue gas SO2",
+                "flow": "so2",
+                "amount": 0.0004,
+                "unit": "kg"
+            },
+            {
+                "type": "emission",
+                "name": "Flue gas NOx",
+                "flow": "nox",
+                "amount": 0.0007,
+                "unit": "kg"
+            },
+            {
+                "type": "emission",
+                "name": "Fugitive methane",
+                "flow": "ch4",
+                "amount": 0.0009,
+                "unit": "kg"
+            },
+            {
+                "type": "waste",
+                "name": "Process wastewater",
+                "key": "wastewater_treatment",
+                "amount": 0.003,
+                "unit": "m3"
+            },
+            {
+                "type": "waste",
+                "name": "Spent catalyst",
+                "key": "hazardous_waste_incineration",
+                "amount": 0.0008,
+                "unit": "kg"
+            }
+        ],
+        "metadata": {
+            "product_code": "DSL-001",
+            "plant": "Refinery A",
+            "period": "2026-Q3",
+            "request_ref": "REQ-12345"
+        }
+    }
+
+    res = client.post("/v1/lca/calculate", json=senior_refinery_payload)
+    assert res.status_code == 200, res.text
+    data = res.json()
+
+    assert "run_id" in data
+    assert "summary" in data
+    assert "gwp100" in data["summary"]
+    assert "acidification" in data["summary"]
+
+    # Exactly match pgAdmin values
+    # gwp100: ~0.94224649
+    # acidification: ~0.00141920
+    assert abs(data["summary"]["gwp100"] - 0.94224649) < 1e-4
+    assert abs(data["summary"]["acidification"] - 0.00141920) < 1e-5
+
+    run_id = data["run_id"]
+
+    # Verify run audit logging via GET /v1/runs and GET /v1/runs/{run_id}
+    runs_res = client.get("/v1/runs")
+    assert runs_res.status_code == 200
+    runs = runs_res.json()
+    assert any(r["run_id"] == run_id for r in runs)
+
+    single_run = client.get(f"/v1/runs/{run_id}")
+    assert single_run.status_code == 200
+    r_data = single_run.json()
+    assert r_data["run_id"] == run_id
+    assert r_data["summary"]["gwp100"] == data["summary"]["gwp100"]
+
+
 if __name__ == "__main__":
     print("=" * 60)
     print("RUNNING FASTAPI REST API INTEGRATION TESTS")
@@ -315,6 +540,9 @@ if __name__ == "__main__":
         ("Product CRUD & LCA Calculation", test_product_crud_and_calculation),
         ("Invalid Payload Validation", test_invalid_product_validation),
         ("Senior Flat Refinery Payload & Allocation", test_senior_flat_refinery_payload),
+        ("V1 Reference Data (Units, Flows, Methods, Activities)", test_v1_reference_data),
+        ("V1 Unit & Activity CRUD", test_v1_unit_and_activity_crud),
+        ("V1 LCA Calculate & Runs Audit Log", test_v1_lca_calculate_and_runs),
     ]
 
     passed = 0

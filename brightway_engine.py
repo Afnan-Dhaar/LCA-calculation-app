@@ -9,7 +9,9 @@ rich contribution analytics.
 
 from __future__ import annotations
 
+import os
 import re
+import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -848,3 +850,295 @@ def get_available_methods(search: str | None = None, limit: int = 50) -> list[tu
         selected = [m for m in all_methods if q in str(m).lower()][:limit]
 
     return [(m, " → ".join(m)) for m in selected]
+
+
+# ---------------------------------------------------------------------------
+# Dynamic PCF LCA Project & Calculation Solver (Driven by PostgreSQL)
+# ---------------------------------------------------------------------------
+
+PCF_PROJECT = os.getenv("BW_PROJECT", "pcf_lca_api")
+PCF_BIO = "lca_bio"
+PCF_DB = "lca_db"
+PCF_SCRATCH = "lca_runs"
+
+
+def sync_pcf_lca_project(force: bool = False) -> None:
+    """Synchronize the Brightway project with flows, methods, and activities
+    dynamically defined in the PostgreSQL database.
+    """
+    import db
+
+    bd.projects.set_current(PCF_PROJECT)
+
+    if not force and PCF_BIO in bd.databases and PCF_DB in bd.databases:
+        # Check if already initialized
+        return
+
+    # Clear old databases
+    for name in (PCF_BIO, PCF_DB, PCF_SCRATCH):
+        if name in bd.databases:
+            del bd.databases[name]
+
+    # 1. Load from PostgreSQL
+    flows = db.get_all_flows_db()
+    methods = db.get_all_methods_db()
+    activities = db.get_all_activities_db()
+
+    # Deregister existing methods in project
+    for m in methods:
+        mt = tuple(m["method_tuple"])
+        if mt in bd.methods:
+            bd.Method(mt).deregister()
+
+    # 2. Write Biosphere Database (lca_bio)
+    bd.Database(PCF_BIO).write({
+        (PCF_BIO, f["code"]): {
+            "name": f["name"],
+            "unit": f["unit"],
+            "categories": (f.get("categories", "air"),),
+            "type": f.get("flow_type", "emission"),
+        }
+        for f in flows
+    })
+
+    # 3. Write LCIA Methods
+    for m in methods:
+        mt = tuple(m["method_tuple"])
+        bm = bd.Method(mt)
+        bm.register(unit=m["unit"])
+        bm.write([((PCF_BIO, flow_code), factor) for flow_code, factor in m["cfs"].items()])
+
+    # 4. Write Technosphere Activities Database (lca_db)
+    data = {}
+    for a in activities:
+        code = a["code"]
+        name = a["name"]
+        unit = a["unit"]
+        loc = a.get("location", "GLO")
+        bio_ex = a.get("emissions") or {}
+        tech_ex = a.get("technosphere") or {}
+
+        ex = [{"input": (PCF_DB, code), "output": (PCF_DB, code), "amount": 1.0, "type": "production"}]
+        ex += [{"input": (PCF_BIO, f), "output": (PCF_DB, code), "amount": amt, "type": "biosphere"}
+               for f, amt in bio_ex.items()]
+        ex += [{"input": (PCF_DB, o), "output": (PCF_DB, code), "amount": amt, "type": "technosphere"}
+               for o, amt in tech_ex.items()]
+
+        data[(PCF_DB, code)] = {
+            "name": name,
+            "unit": unit,
+            "location": loc,
+            "reference product": name,
+            "exchanges": ex,
+        }
+
+    bd.Database(PCF_DB).write(data)
+
+    if PCF_SCRATCH not in bd.databases:
+        bd.Database(PCF_SCRATCH).register()
+
+
+def calculate_pcf_lca(payload: dict[str, Any]) -> dict[str, Any]:
+    """Execute dynamic multi-method LCA on a raw PCF payload (with co-product allocation)
+    using the dynamic PostgreSQL-backed Brightway model.
+    """
+    import db
+
+    sync_pcf_lca_project(force=False)
+    bd.projects.set_current(PCF_PROJECT)
+
+    lca_db = bd.Database(PCF_DB)
+    lca_bio = bd.Database(PCF_BIO)
+
+    # 1. Product info
+    prod_data = payload.get("product") or {}
+    product_name = prod_data.get("name", "Product")
+    fu_str = prod_data.get("functional_unit", "1 kg")
+
+    # 2. Allocation Calculation (ISO 14044)
+    alloc_data = payload.get("allocation") or {}
+    alloc_method = alloc_data.get("method", "mass").lower()
+
+    outputs = payload.get("outputs") or []
+    main_prod = next((o for o in outputs if o.get("type") == "product"), None)
+    main_amount = float(main_prod.get("amount", 1.0)) if main_prod else 1.0
+    main_price = float(main_prod.get("price", 1.0)) if main_prod else 1.0
+
+    co_prods = [o for o in outputs if o.get("type") in ["co_product", "coproduct"]]
+    emissions = [o for o in outputs if o.get("type") == "emission"]
+    wastes = [o for o in outputs if o.get("type") in ["waste", "byproduct_waste"]]
+
+    alloc_factor = 1.0
+    total_mass = main_amount + sum(float(cp.get("amount", 0.0)) for cp in co_prods)
+
+    if co_prods:
+        if alloc_method == "mass":
+            alloc_factor = (main_amount / total_mass) if total_mass > 0 else 1.0
+        elif alloc_method == "economic":
+            total_rev = (main_amount * main_price) + sum(
+                float(cp.get("amount", 0.0)) * float(cp.get("price", 1.0)) for cp in co_prods
+            )
+            alloc_factor = ((main_amount * main_price) / total_rev) if total_rev > 0 else 1.0
+
+    # 3. Create foreground activity for calculation
+    run_id = f"run_{uuid.uuid4().hex[:12]}"
+    act_code = f"eval_{run_id}"
+
+    act = lca_db.new_activity(
+        code=act_code,
+        name=product_name,
+        unit="kilogram",
+        type="process",
+    )
+    act.new_exchange(input=act.key, amount=1.0, type="production").save()
+
+    # Track components for hotspot breakdown
+    component_activities: list[tuple[str, str, Any, float]] = []
+
+    # Add Inputs
+    for inp in payload.get("inputs") or []:
+        raw_amt = float(inp.get("amount", inp.get("mass", 0.0)))
+        allocated_amt = raw_amt * alloc_factor
+
+        if "distance_km" in inp or "distance" in inp:
+            dist = float(inp.get("distance_km", inp.get("distance", 0.0)))
+            mass_kg = raw_amt
+            if inp.get("mass_unit", inp.get("unit", "kg")).lower() in ["t", "tonne", "ton"]:
+                mass_kg *= 1000.0
+            tkm = (mass_kg / 1000.0) * dist
+            allocated_tkm = tkm * alloc_factor
+            mode_key = inp.get("key", "truck_16t")
+
+            try:
+                t_act = lca_db.get(mode_key)
+                act.new_exchange(input=t_act.key, amount=allocated_tkm, type="technosphere").save()
+                component_activities.append(("technosphere", inp.get("name", mode_key), t_act, allocated_tkm))
+            except Exception:
+                pass
+        else:
+            flow_key = inp.get("key", inp.get("name"))
+            try:
+                in_act = lca_db.get(flow_key)
+                act.new_exchange(input=in_act.key, amount=allocated_amt, type="technosphere").save()
+                component_activities.append(("technosphere", inp.get("name", flow_key), in_act, allocated_amt))
+            except Exception:
+                pass
+
+    # Add Waste treatments
+    for w in wastes:
+        waste_key = w.get("key", w.get("name"))
+        w_amt = float(w.get("amount", 0.0)) * alloc_factor
+        try:
+            w_act = lca_db.get(waste_key)
+            act.new_exchange(input=w_act.key, amount=w_amt, type="technosphere").save()
+            component_activities.append(("technosphere", w.get("name", waste_key), w_act, w_amt))
+        except Exception:
+            pass
+
+    # Add Direct Emissions
+    direct_emissions_list: list[tuple[str, str, float]] = []
+    for em in emissions:
+        flow_code = em.get("flow", em.get("key", em.get("name", ""))).lower().strip()
+        em_amt = float(em.get("amount", 0.0)) * alloc_factor
+        try:
+            b_flow = lca_bio.get(flow_code)
+            act.new_exchange(input=b_flow.key, amount=em_amt, type="biosphere").save()
+            direct_emissions_list.append((em.get("name", flow_code), flow_code, em_amt))
+        except Exception:
+            pass
+
+    act.save()
+
+    # 4. Multi-Method Impact Calculation
+    configured_methods = db.get_all_methods_db()
+    summary: dict[str, float] = {}
+    hotspots: list[dict[str, Any]] = []
+
+    try:
+        # Solve each LCIA method
+        for m in configured_methods:
+            mt = tuple(m["method_tuple"])
+            lca = bc.LCA({act: 1.0}, method=mt)
+            lca.lci()
+            lca.lcia()
+            summary[m["key"]] = float(lca.score)
+
+        # Build detailed hotspot rankings for GWP100
+        gwp_info = next((m for m in configured_methods if m["key"] == "gwp100"), configured_methods[0])
+        gwp_tuple = tuple(gwp_info["method_tuple"])
+        gwp_cfs = gwp_info.get("cfs") or {}
+        total_gwp = summary.get(gwp_info["key"], 1.0)
+
+        for c_type, c_name, c_act, c_amt in component_activities:
+            try:
+                sub_lca = bc.LCA({c_act: c_amt}, method=gwp_tuple)
+                sub_lca.lci()
+                sub_lca.lcia()
+                sub_score = float(sub_lca.score)
+                pct = (sub_score / total_gwp * 100.0) if total_gwp > 0 else 0.0
+                hotspots.append({
+                    "name": c_name,
+                    "type": "technosphere",
+                    "score": round(sub_score, 6),
+                    "percentage": round(pct, 2),
+                    "unit": gwp_info["unit"],
+                })
+            except Exception:
+                pass
+
+        # Add direct emissions to hotspots
+        for d_name, d_code, d_amt in direct_emissions_list:
+            cf = gwp_cfs.get(d_code, 1.0 if d_code == "co2" else 0.0)
+            d_score = d_amt * cf
+            pct = (d_score / total_gwp * 100.0) if total_gwp > 0 else 0.0
+            hotspots.append({
+                "name": f"{d_name} (direct emission)",
+                "type": "biosphere",
+                "score": round(d_score, 6),
+                "percentage": round(pct, 2),
+                "unit": gwp_info["unit"],
+            })
+
+        hotspots.sort(key=lambda x: x["score"], reverse=True)
+
+    finally:
+        # Clean up temporary run activity from database
+        try:
+            act.delete()
+        except Exception:
+            pass
+
+    # 5. Record Run into PostgreSQL lca_run table
+    meta = payload.get("metadata") or {}
+    run_rec = db.record_run_db(
+        summary=summary,
+        metadata_info=meta,
+        request_data=payload,
+        product_name=product_name,
+        run_id=run_id,
+    )
+
+    return {
+        "status": "success",
+        "run_id": run_id,
+        "product_name": product_name,
+        "summary": summary,
+        "allocation": {
+            "method": alloc_method,
+            "allocation_factor": round(alloc_factor, 6),
+            "allocation_percentage": round(alloc_factor * 100, 2),
+            "target_product_amount": main_amount,
+            "total_system_mass": total_mass,
+            "co_products": [
+                {
+                    "name": cp.get("name"),
+                    "amount": float(cp.get("amount", 0.0)),
+                    "share_pct": round((float(cp.get("amount", 0.0)) / total_mass) * 100, 2) if total_mass > 0 else 0,
+                }
+                for cp in co_prods
+            ],
+        },
+        "metadata": meta,
+        "hotspots": hotspots[:payload.get("top_n", 12)],
+        "created_at": run_rec["created_at"],
+    }

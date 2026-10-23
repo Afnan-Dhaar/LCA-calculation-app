@@ -105,3 +105,57 @@ export async function fetchDatabaseStatus() {
   return await res.json()
 }
 
+// --------------------------------------------------
+// /v1 Enterprise Dynamic API Methods
+// --------------------------------------------------
+
+export async function calculateV1Lca(payload) {
+  const res = await fetch('/v1/lca/calculate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}))
+    throw new Error(errorData.detail || 'PCF LCA calculation failed')
+  }
+  return await res.json()
+}
+
+export async function fetchRuns(limit = 50) {
+  const res = await fetch(`/v1/runs?limit=${limit}`)
+  if (!res.ok) throw new Error('Failed to load calculation runs')
+  return await res.json()
+}
+
+export async function fetchRunById(runId) {
+  const res = await fetch(`/v1/runs/${runId}`)
+  if (!res.ok) throw new Error(`Failed to load run ${runId}`)
+  return await res.json()
+}
+
+export async function fetchUnits() {
+  const res = await fetch('/v1/units')
+  if (!res.ok) throw new Error('Failed to load unit conversions')
+  return await res.json()
+}
+
+export async function fetchActivities() {
+  const res = await fetch('/v1/activities')
+  if (!res.ok) throw new Error('Failed to load background activities')
+  return await res.json()
+}
+
+export async function fetchFlows() {
+  const res = await fetch('/v1/flows')
+  if (!res.ok) throw new Error('Failed to load elementary flows')
+  return await res.json()
+}
+
+export async function fetchV1Methods() {
+  const res = await fetch('/v1/methods')
+  if (!res.ok) throw new Error('Failed to load LCIA methods')
+  return await res.json()
+}
+
+
