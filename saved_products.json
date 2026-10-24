@@ -145,5 +145,272 @@
         ]
       }
     ]
+  },
+  {
+    "product_id": "flask_750_steel",
+    "product_name": "Insulated Stainless Steel Water Bottle (750ml)",
+    "functional_unit_amount": 1.0,
+    "functional_unit": "unit (1 reusable bottle)",
+    "processes": [
+      {
+        "process_id": "flask_raw_materials",
+        "process_name": "Raw Material Extraction & Compounding",
+        "stage": "Raw Materials",
+        "exchanges": [
+          {
+            "flow_name": "Steel, structural generic",
+            "exchange_type": "input",
+            "amount": 0.28,
+            "unit": "kg"
+          },
+          {
+            "flow_name": "Plastic granules / pellets (generic)",
+            "exchange_type": "input",
+            "amount": 0.045,
+            "unit": "kg"
+          },
+          {
+            "flow_name": "Copper, refined generic",
+            "exchange_type": "input",
+            "amount": 0.008,
+            "unit": "kg"
+          },
+          {
+            "flow_name": "Cardboard, corrugated packaging",
+            "exchange_type": "input",
+            "amount": 0.065,
+            "unit": "kg"
+          }
+        ],
+        "transportation": [
+          {
+            "transport_mode": "train",
+            "distance": 450.0,
+            "distance_unit": "km",
+            "transported_mass": 0.4,
+            "mass_unit": "kg"
+          }
+        ]
+      },
+      {
+        "process_id": "flask_manufacturing",
+        "process_name": "Deep-Drawing, Vacuum Brazing & Flask Assembly",
+        "stage": "Manufacturing",
+        "exchanges": [
+          {
+            "flow_name": "Raw Material Extraction & Compounding",
+            "exchange_type": "input",
+            "amount": 1.0,
+            "unit": "unit"
+          },
+          {
+            "flow_name": "Electricity, grid average",
+            "exchange_type": "input",
+            "amount": 1.15,
+            "unit": "kWh"
+          },
+          {
+            "flow_name": "Process heat, from natural gas boiler",
+            "exchange_type": "input",
+            "amount": 0.45,
+            "unit": "kWh"
+          },
+          {
+            "flow_name": "Tap water, municipal",
+            "exchange_type": "input",
+            "amount": 2.8,
+            "unit": "kg"
+          },
+          {
+            "flow_name": "Carbon dioxide, fossil",
+            "exchange_type": "output",
+            "amount": 0.042,
+            "unit": "kg"
+          },
+          {
+            "flow_name": "Nitrogen oxides",
+            "exchange_type": "output",
+            "amount": 0.0003,
+            "unit": "kg"
+          }
+        ],
+        "transportation": [
+          {
+            "transport_mode": "truck",
+            "distance": 120.0,
+            "distance_unit": "km",
+            "transported_mass": 0.4,
+            "mass_unit": "kg"
+          }
+        ]
+      },
+      {
+        "process_id": "flask_distribution",
+        "process_name": "Global Maritime & Regional Retail Logistics",
+        "stage": "Distribution",
+        "exchanges": [
+          {
+            "flow_name": "Deep-Drawing, Vacuum Brazing & Flask Assembly",
+            "exchange_type": "input",
+            "amount": 1.0,
+            "unit": "unit"
+          }
+        ],
+        "transportation": [
+          {
+            "transport_mode": "ship",
+            "distance": 2400.0,
+            "distance_unit": "km",
+            "transported_mass": 0.4,
+            "mass_unit": "kg"
+          },
+          {
+            "transport_mode": "truck",
+            "distance": 180.0,
+            "distance_unit": "km",
+            "transported_mass": 0.4,
+            "mass_unit": "kg"
+          }
+        ]
+      },
+      {
+        "process_id": "flask_end_of_life",
+        "process_name": "End-of-Life Sorting & Metal Scrap Recycling",
+        "stage": "End of Life",
+        "exchanges": [
+          {
+            "flow_name": "Global Maritime & Regional Retail Logistics",
+            "exchange_type": "input",
+            "amount": 1.0,
+            "unit": "unit"
+          },
+          {
+            "flow_name": "Electricity, grid average",
+            "exchange_type": "input",
+            "amount": 0.12,
+            "unit": "kWh"
+          },
+          {
+            "flow_name": "Carbon dioxide, fossil",
+            "exchange_type": "output",
+            "amount": 0.015,
+            "unit": "kg"
+          }
+        ],
+        "transportation": [
+          {
+            "transport_mode": "truck",
+            "distance": 50.0,
+            "distance_unit": "km",
+            "transported_mass": 0.35,
+            "mass_unit": "kg"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "product_id": "office_task_chair",
+    "product_name": "Ergonomic Office Task Chair",
+    "functional_unit_amount": 1.0,
+    "functional_unit": "unit (1 ergonomic chair)",
+    "processes": [
+      {
+        "process_id": "chair_materials",
+        "process_name": "Structural Metals & Polymer Injection Molding",
+        "stage": "Raw Materials",
+        "exchanges": [
+          {
+            "flow_name": "Steel, structural generic",
+            "exchange_type": "input",
+            "amount": 5.8,
+            "unit": "kg"
+          },
+          {
+            "flow_name": "Aluminum, primary/secondary generic",
+            "exchange_type": "input",
+            "amount": 2.4,
+            "unit": "kg"
+          },
+          {
+            "flow_name": "Plastic granules / pellets (generic)",
+            "exchange_type": "input",
+            "amount": 4.2,
+            "unit": "kg"
+          },
+          {
+            "flow_name": "Cardboard, corrugated packaging",
+            "exchange_type": "input",
+            "amount": 1.8,
+            "unit": "kg"
+          }
+        ],
+        "transportation": [
+          {
+            "transport_mode": "train",
+            "distance": 350.0,
+            "distance_unit": "km",
+            "transported_mass": 14.2,
+            "mass_unit": "kg"
+          }
+        ]
+      },
+      {
+        "process_id": "chair_assembly",
+        "process_name": "Robotic Mechanical Assembly & Packaging",
+        "stage": "Manufacturing",
+        "exchanges": [
+          {
+            "flow_name": "Structural Metals & Polymer Injection Molding",
+            "exchange_type": "input",
+            "amount": 1.0,
+            "unit": "unit"
+          },
+          {
+            "flow_name": "Electricity, grid average",
+            "exchange_type": "input",
+            "amount": 8.5,
+            "unit": "kWh"
+          },
+          {
+            "flow_name": "Carbon dioxide, fossil",
+            "exchange_type": "output",
+            "amount": 0.35,
+            "unit": "kg"
+          }
+        ],
+        "transportation": [
+          {
+            "transport_mode": "truck",
+            "distance": 80.0,
+            "distance_unit": "km",
+            "transported_mass": 14.2,
+            "mass_unit": "kg"
+          }
+        ]
+      },
+      {
+        "process_id": "chair_logistics",
+        "process_name": "Commercial Freight Distribution",
+        "stage": "Distribution",
+        "exchanges": [
+          {
+            "flow_name": "Robotic Mechanical Assembly & Packaging",
+            "exchange_type": "input",
+            "amount": 1.0,
+            "unit": "unit"
+          }
+        ],
+        "transportation": [
+          {
+            "transport_mode": "truck",
+            "distance": 450.0,
+            "distance_unit": "km",
+            "transported_mass": 14.2,
+            "mass_unit": "kg"
+          }
+        ]
+      }
+    ]
   }
 ]
