@@ -946,6 +946,120 @@ def sync_pcf_lca_project(force: bool = False) -> None:
         bd.Database(PCF_SCRATCH).register()
 
 
+def sync_single_activity(code: str) -> None:
+    """Incrementally synchronize a single activity into lca_db without wiping the database."""
+    import db
+    bd.projects.set_current(PCF_PROJECT)
+    if PCF_DB not in bd.databases or PCF_BIO not in bd.databases:
+        sync_pcf_lca_project(force=False)
+
+    activities = db.get_all_activities_db()
+    a = next((act for act in activities if act["code"] == code), None)
+    if not a:
+        return
+
+    lca_db = bd.Database(PCF_DB)
+    if (PCF_DB, code) in lca_db:
+        act = lca_db.get(code)
+        for exc in list(act.exchanges()):
+            exc.delete()
+    else:
+        act = lca_db.new_activity(code=code)
+
+    act["name"] = a["name"]
+    act["unit"] = a["unit"]
+    act["location"] = a.get("location", "GLO")
+    act["reference product"] = a["name"]
+    act.save()
+
+    act.new_exchange(input=act.key, amount=1.0, type="production").save()
+    for f, amt in (a.get("emissions") or {}).items():
+        act.new_exchange(input=(PCF_BIO, f), amount=amt, type="biosphere").save()
+    for o, amt in (a.get("technosphere") or {}).items():
+        act.new_exchange(input=(PCF_DB, o), amount=amt, type="technosphere").save()
+    act.save()
+
+
+def delete_single_activity(code: str) -> None:
+    """Remove a single activity node from lca_db without rebuilding the database."""
+    bd.projects.set_current(PCF_PROJECT)
+    if PCF_DB in bd.databases:
+        lca_db = bd.Database(PCF_DB)
+        if (PCF_DB, code) in lca_db:
+            lca_db.get(code).delete()
+
+
+def sync_single_flow(code: str) -> None:
+    """Incrementally synchronize an elementary emission flow in lca_bio."""
+    import db
+    bd.projects.set_current(PCF_PROJECT)
+    if PCF_BIO not in bd.databases:
+        sync_pcf_lca_project(force=False)
+
+    flows = db.get_all_flows_db()
+    f_data = next((fl for fl in flows if fl["code"] == code), None)
+    if not f_data:
+        return
+
+    lca_bio = bd.Database(PCF_BIO)
+    if (PCF_BIO, code) in lca_bio:
+        flow_act = lca_bio.get(code)
+    else:
+        flow_act = lca_bio.new_activity(code=code)
+
+    flow_act["name"] = f_data["name"]
+    flow_act["unit"] = f_data["unit"]
+    flow_act["categories"] = (f_data.get("categories", "air"),)
+    flow_act["type"] = f_data.get("flow_type", "emission")
+    flow_act.save()
+
+
+def delete_single_flow(code: str) -> None:
+    """Remove a single elementary flow from lca_bio."""
+    bd.projects.set_current(PCF_PROJECT)
+    if PCF_BIO in bd.databases:
+        lca_bio = bd.Database(PCF_BIO)
+        if (PCF_BIO, code) in lca_bio:
+            lca_bio.get(code).delete()
+
+
+def sync_single_method(key: str) -> None:
+    """Incrementally register or update a single LCIA method."""
+    import db
+    bd.projects.set_current(PCF_PROJECT)
+    methods = db.get_all_methods_db()
+    m_data = next((m for m in methods if m["key"] == key), None)
+    if not m_data:
+        return
+
+    mt = tuple(m_data["method_tuple"])
+    if mt in bd.methods:
+        bd.Method(mt).deregister()
+
+    flows = db.get_all_flows_db()
+    valid_flow_codes = {f["code"] for f in flows}
+
+    bm = bd.Method(mt)
+    bm.register(unit=m_data["unit"])
+    bm.write([
+        ((PCF_BIO, flow_code), factor)
+        for flow_code, factor in m_data["cfs"].items()
+        if flow_code in valid_flow_codes
+    ])
+
+
+def delete_single_method(key: str) -> None:
+    """Deregister a single LCIA method."""
+    import db
+    bd.projects.set_current(PCF_PROJECT)
+    methods = db.get_all_methods_db()
+    m_data = next((m for m in methods if m["key"] == key), None)
+    if m_data:
+        mt = tuple(m_data["method_tuple"])
+        if mt in bd.methods:
+            bd.Method(mt).deregister()
+
+
 LHV_DEFAULTS: dict[str, float] = {
     "diesel": 43.0,
     "diesel, refinery gate": 43.0,

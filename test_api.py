@@ -588,6 +588,172 @@ def test_v1_energy_allocation_and_midpoints():
         assert isinstance(summary[expected_method], (int, float))
 
 
+def test_v1_database_version_and_matrix_hash():
+    """Verify matrix fingerprint generation and /v1/database/version."""
+    res = client.get("/v1/database/version")
+    assert res.status_code == 200, res.text
+    data = res.json()
+    assert "matrix_hash" in data
+    assert data["matrix_hash"].startswith("sha256:")
+    assert data["total_activities"] > 0
+    assert data["total_flows"] > 0
+    assert data["total_methods"] > 0
+    assert data["total_units"] > 0
+
+    # Verify /api/database/status also has matrix_hash
+    legacy_res = client.get("/api/database/status")
+    assert legacy_res.status_code == 200
+    legacy_data = legacy_res.json()
+    assert legacy_data["matrix_hash"] == data["matrix_hash"]
+
+
+def test_v1_referential_integrity_and_cycles():
+    """Verify that bad references and cycles are rejected with HTTP 400."""
+    # 1. Non-existent technosphere activity
+    bad_act_techno = {
+        "code": "test_broken_techno",
+        "name": "Broken Technosphere",
+        "unit": "kg",
+        "technosphere": {"non_existent_upstream_xyz": 1.5},
+    }
+    res1 = client.post("/v1/activities", json=bad_act_techno)
+    assert res1.status_code == 400, res1.text
+    assert "Technosphere inputs reference non-existent" in res1.json()["detail"]
+
+    # 2. Non-existent emission flow
+    bad_act_flow = {
+        "code": "test_broken_flow",
+        "name": "Broken Emission Flow",
+        "unit": "kg",
+        "emissions": {"non_existent_emission_abc": 0.5},
+    }
+    res2 = client.post("/v1/activities", json=bad_act_flow)
+    assert res2.status_code == 400, res2.text
+    assert "Direct emissions reference non-existent elementary flows" in res2.json()["detail"]
+
+    # 3. Self-referencing activity
+    self_ref_act = {
+        "code": "test_self_ref",
+        "name": "Self Referencing Act",
+        "unit": "kg",
+        "technosphere": {"test_self_ref": 1.0},
+    }
+    res3 = client.post("/v1/activities", json=self_ref_act)
+    assert res3.status_code == 400, res3.text
+    assert "cannot reference itself" in res3.json()["detail"]
+
+
+def test_v1_dependency_delete_protection_and_cascade():
+    """Verify that deleting an activity or flow required by downstream models is prevented unless cascade=True."""
+    # Create upstream parent activity
+    parent = {
+        "code": "test_upstream_feedstock",
+        "name": "Upstream Feedstock",
+        "unit": "kg",
+    }
+    r1 = client.post("/v1/activities", json=parent)
+    assert r1.status_code == 200
+
+    # Create downstream child activity
+    child = {
+        "code": "test_downstream_product",
+        "name": "Downstream Product",
+        "unit": "kg",
+        "technosphere": {"test_upstream_feedstock": 2.0},
+    }
+    r2 = client.post("/v1/activities", json=child)
+    assert r2.status_code == 200
+
+    # Attempting to delete upstream without cascade must fail with 400
+    del_blocked = client.delete("/v1/activities/test_upstream_feedstock")
+    assert del_blocked.status_code == 400, del_blocked.text
+    assert "required by downstream activities" in del_blocked.json()["detail"]
+
+    # Deleting child first succeeds
+    del_child = client.delete("/v1/activities/test_downstream_product")
+    assert del_child.status_code == 200
+
+    # Now deleting upstream succeeds
+    del_parent = client.delete("/v1/activities/test_upstream_feedstock")
+    assert del_parent.status_code == 200
+
+    # Flow deletion protection: attempt to delete 'co2' without cascade must fail
+    del_co2 = client.delete("/v1/flows/co2")
+    assert del_co2.status_code == 400
+    assert "referenced by" in del_co2.json()["detail"]
+
+
+def test_v1_flow_and_method_crud():
+    """Verify CRUD endpoints for elementary flows and LCIA methods."""
+    # 1. Flow CRUD
+    new_flow = {
+        "code": "test_cfc11",
+        "name": "Trichlorofluoromethane (CFC-11)",
+        "unit": "kilogram",
+        "categories": "air",
+        "flow_type": "emission",
+    }
+    f_res = client.post("/v1/flows", json=new_flow)
+    assert f_res.status_code == 200, f_res.text
+
+    # List flows to check existence
+    flows = client.get("/v1/flows").json()
+    assert any(f["code"] == "test_cfc11" for f in flows)
+
+    # 2. Method CRUD
+    new_method = {
+        "key": "test_odp",
+        "name": "Ozone Depletion Potential Test",
+        "method_tuple": ["TEST", "ODP"],
+        "unit": "kg CFC-11-Eq",
+        "cfs": {"test_cfc11": 1.0},
+    }
+    m_res = client.post("/v1/methods", json=new_method)
+    assert m_res.status_code == 200, m_res.text
+
+    # List methods to check existence
+    methods = client.get("/v1/methods").json()
+    assert any(m["key"] == "test_odp" for m in methods)
+
+    # Delete method first
+    del_m = client.delete("/v1/methods/test_odp")
+    assert del_m.status_code == 200
+    assert del_m.json()["status"] == "success"
+
+    # Delete flow
+    del_f = client.delete("/v1/flows/test_cfc11")
+    assert del_f.status_code == 200
+    assert del_f.json()["status"] == "success"
+
+
+def test_v1_multi_hop_graph_unit_conversion():
+    """Verify graph BFS resolver across chained unit conversion definitions."""
+    import db
+    # Insert a 3-hop chained conversion into unit_conversion table:
+    # node_a -> node_b (x 2.5)
+    # node_b -> node_c (x 4.0)
+    # Expected node_a -> node_c = 10.0
+    client.post("/v1/units", json={"code": "hop_a_b", "from_unit": "node_a", "to_unit": "node_b", "factor": 2.5, "dimension": "test"})
+    client.post("/v1/units", json={"code": "hop_b_c", "from_unit": "node_b", "to_unit": "node_c", "factor": 4.0, "dimension": "test"})
+
+    try:
+        factor_forward = db.resolve_conversion_graph("node_a", "node_c")
+        assert factor_forward is not None
+        assert abs(factor_forward - 10.0) < 1e-6
+
+        # Inverse graph traversal: node_c -> node_a = 0.1
+        factor_reverse = db.resolve_conversion_graph("node_c", "node_a")
+        assert factor_reverse is not None
+        assert abs(factor_reverse - 0.1) < 1e-6
+
+        # Convert amount via convert_unit_db
+        converted = db.convert_unit_db(5.0, "node_a", "node_c")
+        assert abs(converted - 50.0) < 1e-6
+    finally:
+        client.delete("/v1/units/hop_a_b")
+        client.delete("/v1/units/hop_b_c")
+
+
 if __name__ == "__main__":
     print("=" * 60)
     print("RUNNING FASTAPI REST API INTEGRATION TESTS")
@@ -605,6 +771,11 @@ if __name__ == "__main__":
         ("V1 LCA Calculate & Runs Audit Log", test_v1_lca_calculate_and_runs),
         ("V1 Unit Conversion Auto-Wiring", test_v1_unit_conversion_auto_wiring),
         ("V1 ISO 14044 Energy Allocation & Midpoints", test_v1_energy_allocation_and_midpoints),
+        ("V1 Database Version & Matrix Hash Fingerprint", test_v1_database_version_and_matrix_hash),
+        ("V1 Referential Integrity & Self-Reference Prevention", test_v1_referential_integrity_and_cycles),
+        ("V1 Dependency Deletion Protection & Cascade", test_v1_dependency_delete_protection_and_cascade),
+        ("V1 Flow & Method CRUD with Incremental Sync", test_v1_flow_and_method_crud),
+        ("V1 Multi-Hop Graph Unit Conversion", test_v1_multi_hop_graph_unit_conversion),
     ]
 
     passed = 0

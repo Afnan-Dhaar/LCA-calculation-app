@@ -463,6 +463,40 @@ def upsert_flow_db(data: dict[str, Any]) -> dict[str, Any]:
         db.close()
 
 
+def delete_flow_db(code: str, cascade: bool = False) -> bool:
+    """Delete an elementary flow from lca_flow table with referential integrity check."""
+    db = SessionLocal()
+    try:
+        code = str(code).strip().lower()
+        rec = db.query(LcaFlowRecord).filter(LcaFlowRecord.code == code).first()
+        if not rec:
+            return False
+
+        if not cascade:
+            all_acts = db.query(LcaActivityRecord).all()
+            referencing_acts = [a.code for a in all_acts if code in (a.emissions or {})]
+
+            all_methods = db.query(LcaMethodRecord).all()
+            referencing_methods = [m.key for m in all_methods if code in (m.cfs or {})]
+
+            if referencing_acts or referencing_methods:
+                err_parts = []
+                if referencing_acts:
+                    err_parts.append(f"activities: {', '.join(referencing_acts)}")
+                if referencing_methods:
+                    err_parts.append(f"methods: {', '.join(referencing_methods)}")
+                raise ValueError(
+                    f"Cannot delete flow '{code}': referenced by {'; '.join(err_parts)}. "
+                    "Remove dependencies first or specify cascade=True."
+                )
+
+        db.delete(rec)
+        db.commit()
+        return True
+    finally:
+        db.close()
+
+
 # ---------------------------------------------------------------------------
 # Method CRUD Operations
 # ---------------------------------------------------------------------------
@@ -513,6 +547,21 @@ def upsert_method_db(data: dict[str, Any]) -> dict[str, Any]:
         db.close()
 
 
+def delete_method_db(key: str) -> bool:
+    """Delete an LCIA method from lca_method table."""
+    db = SessionLocal()
+    try:
+        key = str(key).strip().lower()
+        rec = db.query(LcaMethodRecord).filter(LcaMethodRecord.key == key).first()
+        if not rec:
+            return False
+        db.delete(rec)
+        db.commit()
+        return True
+    finally:
+        db.close()
+
+
 # ---------------------------------------------------------------------------
 # Activity CRUD Operations
 # ---------------------------------------------------------------------------
@@ -539,24 +588,47 @@ def get_all_activities_db() -> list[dict[str, Any]]:
 
 
 def upsert_activity_db(data: dict[str, Any]) -> dict[str, Any]:
+    """Create or update background activity with relational integrity checks."""
     db = SessionLocal()
     try:
         code = str(data.get("code", "")).strip().lower()
+        if not code:
+            raise ValueError("Activity code cannot be empty.")
+
+        technosphere = data.get("technosphere") or {}
+        emissions = data.get("emissions") or {}
+
+        # 1. Self-reference check
+        if code in technosphere:
+            raise ValueError(f"Activity '{code}' cannot reference itself as an upstream input.")
+
+        # 2. Referential integrity: Check that upstream technosphere activities exist
+        existing_acts = {r.code for r in db.query(LcaActivityRecord.code).all()}
+        missing_acts = [dep for dep in technosphere.keys() if dep != code and dep not in existing_acts]
+        if missing_acts:
+            raise ValueError(f"Technosphere inputs reference non-existent background activities: {', '.join(missing_acts)}")
+
+        # 3. Referential integrity: Check that emission flows exist in lca_flow
+        existing_flows = {r.code for r in db.query(LcaFlowRecord.code).all()}
+        missing_flows = [fl for fl in emissions.keys() if fl not in existing_flows]
+        if missing_flows:
+            raise ValueError(f"Direct emissions reference non-existent elementary flows in lca_flow: {', '.join(missing_flows)}")
+
         rec = db.query(LcaActivityRecord).filter(LcaActivityRecord.code == code).first()
         if rec:
             rec.name = data.get("name", rec.name)
             rec.unit = data.get("unit", rec.unit)
             rec.location = data.get("location", rec.location)
-            rec.emissions = data.get("emissions", rec.emissions)
-            rec.technosphere = data.get("technosphere", rec.technosphere)
+            rec.emissions = emissions
+            rec.technosphere = technosphere
         else:
             rec = LcaActivityRecord(
                 code=code,
                 name=data.get("name", code),
                 unit=data.get("unit", "kilogram"),
                 location=data.get("location", "GLO"),
-                emissions=data.get("emissions", {}),
-                technosphere=data.get("technosphere", {}),
+                emissions=emissions,
+                technosphere=technosphere,
             )
             db.add(rec)
         db.commit()
@@ -566,12 +638,24 @@ def upsert_activity_db(data: dict[str, Any]) -> dict[str, Any]:
         db.close()
 
 
-def delete_activity_db(code: str) -> bool:
+def delete_activity_db(code: str, cascade: bool = False) -> bool:
+    """Delete a background activity with downstream dependency check."""
     db = SessionLocal()
     try:
+        code = str(code).strip().lower()
         rec = db.query(LcaActivityRecord).filter(LcaActivityRecord.code == code).first()
         if not rec:
             return False
+
+        if not cascade:
+            all_acts = db.query(LcaActivityRecord).all()
+            dependent_acts = [a.code for a in all_acts if a.code != code and code in (a.technosphere or {})]
+            if dependent_acts:
+                raise ValueError(
+                    f"Cannot delete activity '{code}': required by downstream activities ({', '.join(dependent_acts)}). "
+                    "Remove dependency references or specify cascade=True."
+                )
+
         db.delete(rec)
         db.commit()
         return True
@@ -713,9 +797,59 @@ SI_BASE_FACTORS: dict[str, tuple[str, float]] = {
 }
 
 
+def resolve_conversion_graph(from_unit: str, to_unit: str) -> float | None:
+    """Solve multi-hop unit conversion path across PostgreSQL unit_conversion table
+    using Breadth-First Search (BFS) graph traversal.
+    """
+    from collections import deque
+    f_norm = normalize_unit_str(from_unit)
+    t_norm = normalize_unit_str(to_unit)
+    if not f_norm or not t_norm:
+        return None
+    if f_norm == t_norm:
+        return 1.0
+
+    db = SessionLocal()
+    try:
+        rows = db.query(UnitConversionRecord).all()
+        if not rows:
+            return None
+
+        adj: dict[str, list[tuple[str, float]]] = {}
+        for r in rows:
+            u = normalize_unit_str(r.from_unit)
+            v = normalize_unit_str(r.to_unit)
+            try:
+                f = float(r.factor)
+            except (ValueError, TypeError):
+                continue
+            if f <= 0:
+                continue
+            adj.setdefault(u, []).append((v, f))
+            adj.setdefault(v, []).append((u, 1.0 / f))
+
+        if f_norm not in adj or t_norm not in adj:
+            return None
+
+        queue = deque([(f_norm, 1.0)])
+        visited = {f_norm}
+        while queue:
+            curr_unit, curr_factor = queue.popleft()
+            if curr_unit == t_norm:
+                return curr_factor
+            for neighbor, edge_factor in adj.get(curr_unit, []):
+                if neighbor not in visited:
+                    visited.add(neighbor)
+                    queue.append((neighbor, curr_factor * edge_factor))
+        return None
+    finally:
+        db.close()
+
+
 def convert_unit_db(amount: float, from_unit: str, to_unit: str) -> float:
-    """Convert an amount from from_unit to to_unit using PostgreSQL unit_conversion
-    table, bridging standard units, and SI physical dimension fallback.
+    """Convert an amount from from_unit to to_unit using:
+    1. Multi-hop graph search across PostgreSQL unit_conversion table
+    2. SI physical dimension fallback dictionary
     """
     if amount == 0.0:
         return 0.0
@@ -726,33 +860,13 @@ def convert_unit_db(amount: float, from_unit: str, to_unit: str) -> float:
     if not f_norm or not t_norm or f_norm == t_norm:
         return float(amount)
 
-    # 1. Try querying unit_conversion table directly
-    db = SessionLocal()
+    # 1. Multi-hop graph traversal on PostgreSQL unit_conversion table
     try:
-        # Direct conversion
-        rec = db.query(UnitConversionRecord).filter(
-            (UnitConversionRecord.from_unit.ilike(f_norm)) & (UnitConversionRecord.to_unit.ilike(t_norm))
-        ).first()
-        if rec and rec.factor:
-            return float(amount) * float(rec.factor)
-
-        # Reverse conversion
-        rev_rec = db.query(UnitConversionRecord).filter(
-            (UnitConversionRecord.from_unit.ilike(t_norm)) & (UnitConversionRecord.to_unit.ilike(f_norm))
-        ).first()
-        if rev_rec and rev_rec.factor and rev_rec.factor > 0:
-            return float(amount) * (1.0 / float(rev_rec.factor))
-
-        # Bridged conversion (both convert to same standard unit in DB)
-        all_recs = db.query(UnitConversionRecord).all()
-        f_to_std = next((r for r in all_recs if normalize_unit_str(r.from_unit) == f_norm), None)
-        t_to_std = next((r for r in all_recs if normalize_unit_str(r.from_unit) == t_norm), None)
-        if f_to_std and t_to_std and normalize_unit_str(f_to_std.to_unit) == normalize_unit_str(t_to_std.to_unit):
-            return float(amount) * (float(f_to_std.factor) / float(t_to_std.factor))
+        graph_factor = resolve_conversion_graph(f_norm, t_norm)
+        if graph_factor is not None:
+            return float(amount) * graph_factor
     except Exception:
         pass
-    finally:
-        db.close()
 
     # 2. SI standard dictionary fallback
     if f_norm in SI_BASE_FACTORS and t_norm in SI_BASE_FACTORS:
@@ -765,6 +879,44 @@ def convert_unit_db(amount: float, from_unit: str, to_unit: str) -> float:
     # If completely unknown, return original amount with warning
     print(f"Notice: No unit conversion factor found for '{from_unit}' -> '{to_unit}'. Using 1:1.")
     return float(amount)
+
+
+def get_background_matrix_hash() -> str:
+    """Calculate a deterministic SHA-256 fingerprint representing the background
+    technosphere, biosphere, impact methods, and unit conversions.
+    """
+    import hashlib
+    db = SessionLocal()
+    try:
+        flows = sorted([(r.code, r.unit) for r in db.query(LcaFlowRecord.code, LcaFlowRecord.unit).all()])
+        methods = sorted([
+            (m.key, m.unit, tuple(sorted((m.cfs or {}).items())))
+            for m in db.query(LcaMethodRecord).all()
+        ])
+        acts = sorted([
+            (
+                a.code,
+                a.unit,
+                a.location,
+                tuple(sorted((a.technosphere or {}).items())),
+                tuple(sorted((a.emissions or {}).items()))
+            )
+            for a in db.query(LcaActivityRecord).all()
+        ])
+        units = sorted([(u.code, float(u.factor)) for u in db.query(UnitConversionRecord.code, UnitConversionRecord.factor).all()])
+
+        raw_repr = json.dumps({
+            "flows": flows,
+            "methods": methods,
+            "activities": acts,
+            "units": units,
+        }, sort_keys=True)
+        digest = hashlib.sha256(raw_repr.encode("utf-8")).hexdigest()
+        return f"sha256:{digest[:16]}"
+    except Exception:
+        return "sha256:unknown"
+    finally:
+        db.close()
 
 
 # ---------------------------------------------------------------------------
@@ -786,6 +938,9 @@ def record_run_db(
             run_id = f"run_{uuid.uuid4().hex[:12]}"
         if not product_name:
             product_name = metadata_info.get("product_name") or request_data.get("product", {}).get("name") or "Product"
+
+        if "matrix_hash" not in metadata_info:
+            metadata_info["matrix_hash"] = get_background_matrix_hash()
 
         rec = LcaRunRecord(
             run_id=run_id,
@@ -859,17 +1014,20 @@ def get_run_by_id_db(run_id: str) -> dict[str, Any] | None:
 
 
 def get_db_status() -> dict[str, Any]:
-    """Diagnostics on current database connection and tables."""
+    """Diagnostics on current database connection, background matrix hash, and table counts."""
     db = SessionLocal()
     try:
+        matrix_hash = get_background_matrix_hash()
         return {
             "active_database": active_db_type,
             "is_postgresql": active_db_type == "postgresql",
+            "matrix_hash": matrix_hash,
             "total_activities": db.query(LcaActivityRecord).count(),
             "total_flows": db.query(LcaFlowRecord).count(),
             "total_methods": db.query(LcaMethodRecord).count(),
             "total_units": db.query(UnitConversionRecord).count(),
             "total_runs": db.query(LcaRunRecord).count(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
     except Exception as e:
         return {"error": str(e), "active_database": active_db_type}

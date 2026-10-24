@@ -591,21 +591,36 @@ def v1_list_activities() -> list[dict[str, Any]]:
 
 @app.post("/v1/activities", tags=["activities"], summary="Upsert Activity")
 def v1_upsert_activity(act_in: ActivitySchema) -> dict[str, Any]:
-    """Create or update a background activity and sync Brightway database."""
-    res = database.upsert_activity_db(act_in.model_dump())
+    """Create or update a background activity and incrementally sync Brightway database."""
+    try:
+        res = database.upsert_activity_db(act_in.model_dump())
+    except ValueError as err:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(err))
+    except Exception as err:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(err))
+
     import brightway_engine
-    brightway_engine.sync_pcf_lca_project(force=True)
+    brightway_engine.sync_single_activity(act_in.code)
     return res
 
 
 @app.delete("/v1/activities/{code}", tags=["activities"], summary="Delete Activity")
-def v1_delete_activity(code: str) -> dict[str, Any]:
-    """Remove a background activity from database."""
-    ok = database.delete_activity_db(code)
+def v1_delete_activity(
+    code: str,
+    cascade: bool = Query(default=False, description="Cascade delete downstream dependencies"),
+) -> dict[str, Any]:
+    """Remove a background activity from database with downstream dependency check."""
+    try:
+        ok = database.delete_activity_db(code, cascade=cascade)
+    except ValueError as err:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(err))
+    except Exception as err:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(err))
+
     if not ok:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Activity '{code}' not found.")
     import brightway_engine
-    brightway_engine.sync_pcf_lca_project(force=True)
+    brightway_engine.delete_single_activity(code)
     return {"status": "success", "deleted_code": code}
 
 
@@ -622,11 +637,37 @@ def v1_list_flows() -> list[dict[str, Any]]:
 
 @app.post("/v1/flows", tags=["flows"], summary="Upsert Flow")
 def v1_upsert_flow(flow_in: FlowSchema) -> dict[str, Any]:
-    """Create or update an elementary flow and sync Brightway database."""
-    res = database.upsert_flow_db(flow_in.model_dump())
+    """Create or update an elementary flow and incrementally sync Brightway biosphere."""
+    try:
+        res = database.upsert_flow_db(flow_in.model_dump())
+    except ValueError as err:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(err))
+    except Exception as err:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(err))
+
     import brightway_engine
-    brightway_engine.sync_pcf_lca_project(force=True)
+    brightway_engine.sync_single_flow(flow_in.code)
     return res
+
+
+@app.delete("/v1/flows/{code}", tags=["flows"], summary="Delete Flow")
+def v1_delete_flow(
+    code: str,
+    cascade: bool = Query(default=False, description="Cascade delete dependencies in activities and methods"),
+) -> dict[str, Any]:
+    """Remove an elementary flow from database with dependency checking."""
+    try:
+        ok = database.delete_flow_db(code, cascade=cascade)
+    except ValueError as err:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(err))
+    except Exception as err:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(err))
+
+    if not ok:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Flow '{code}' not found.")
+    import brightway_engine
+    brightway_engine.delete_single_flow(code)
+    return {"status": "success", "deleted_code": code}
 
 
 # --------------------------------------------------
@@ -642,11 +683,46 @@ def v1_list_methods() -> list[dict[str, Any]]:
 
 @app.post("/v1/methods", tags=["methods"], summary="Upsert Method")
 def v1_upsert_method(method_in: MethodSchema) -> dict[str, Any]:
-    """Create or update an LCIA method and characterization factors."""
-    res = database.upsert_method_db(method_in.model_dump())
+    """Create or update an LCIA method and incrementally sync Brightway."""
+    try:
+        res = database.upsert_method_db(method_in.model_dump())
+    except ValueError as err:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(err))
+    except Exception as err:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(err))
+
     import brightway_engine
-    brightway_engine.sync_pcf_lca_project(force=True)
+    brightway_engine.sync_single_method(method_in.key)
     return res
+
+
+@app.delete("/v1/methods/{key}", tags=["methods"], summary="Delete Method")
+def v1_delete_method(key: str) -> dict[str, Any]:
+    """Remove an LCIA method from database and deregister from Brightway."""
+    try:
+        ok = database.delete_method_db(key)
+    except ValueError as err:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(err))
+    except Exception as err:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(err))
+
+    if not ok:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Method '{key}' not found.")
+    import brightway_engine
+    brightway_engine.delete_single_method(key)
+    return {"status": "success", "deleted_key": key}
+
+
+# --------------------------------------------------
+# 7. Database Version & Audit Fingerprint
+# --------------------------------------------------
+
+
+@app.get("/v1/database/version", tags=["database", "health"], summary="Database Version & Matrix Fingerprint")
+def v1_database_version() -> dict[str, Any]:
+    """Retrieve database status, active database engine, record counts, and deterministic SHA-256 matrix hash."""
+    return database.get_db_status()
+
 
 
 # --------------------------------------------------
