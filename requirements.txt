@@ -1,0 +1,25 @@
+# Core Brightway 2.5 LCA Stack
+brightway25>=1.1.0
+bw2data>=4.7
+bw2calc>=3.0.0
+bw2io>=0.9.17
+bw2analyzer>=0.11.8
+
+# Web Framework & REST Service
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+pydantic>=2.9.0
+python-multipart>=0.0.9
+starlette>=0.38.0
+httpx>=0.27.0
+
+# Database Layer & ORM
+SQLAlchemy>=2.0.0
+psycopg[binary]>=3.2.0
+python-dotenv>=1.0.0
+
+# Data Processing & Spreadsheet Parsing
+openpyxl>=3.1.5
+pandas>=2.2.0
+numpy>=1.26.0
+scipy>=1.14.0

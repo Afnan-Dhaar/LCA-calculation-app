@@ -158,4 +158,11 @@ export async function fetchV1Methods() {
   return await res.json()
 }
 
+export async function fetchDatabaseVersion() {
+  const res = await fetch('/v1/database/version')
+  if (!res.ok) return { active_database: 'unknown', matrix_hash: 'unknown' }
+  return await res.json()
+}
+
+
 

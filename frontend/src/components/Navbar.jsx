@@ -1,7 +1,7 @@
 import React from 'react'
 import { Activity, Layers, BarChart3, Database, Code2, Clock, Sparkles, CheckCircle2, AlertCircle } from 'lucide-react'
 
-export default function Navbar({ activeTab, setActiveTab, health, savedCount }) {
+export default function Navbar({ activeTab, setActiveTab, health, savedCount, dbStatus }) {
   const isHealthy = health?.status === 'healthy'
 
   return (
@@ -63,9 +63,27 @@ export default function Navbar({ activeTab, setActiveTab, health, savedCount }) 
         </button>
       </nav>
 
-      <div className="nav-status" id="backend-health-indicator" title={isHealthy ? `Project: ${health.brightway_project} | ${health.installed_methods_count} LCIA Methods` : 'Backend offline'}>
-        <div className="pulse-dot" style={{ backgroundColor: isHealthy ? '#10B981' : '#F43F5E' }} />
-        <span>{isHealthy ? `Brightway Engine (${health.installed_methods_count || 762} Methods)` : 'Engine Disconnected'}</span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        {dbStatus?.matrix_hash && (
+          <div
+            className="badge"
+            style={{
+              background: 'rgba(6, 182, 212, 0.12)',
+              color: '#38BDF8',
+              border: '1px solid rgba(6, 182, 212, 0.3)',
+              fontSize: '0.75rem',
+              padding: '0.35rem 0.65rem',
+            }}
+            title={`Active Database: ${dbStatus.active_database?.toUpperCase()} | Fingerprint: ${dbStatus.matrix_hash}`}
+          >
+            <span>{dbStatus.matrix_hash}</span>
+          </div>
+        )}
+
+        <div className="nav-status" id="backend-health-indicator" title={isHealthy ? `Project: ${health.brightway_project} | ${health.installed_methods_count} LCIA Methods` : 'Backend offline'}>
+          <div className="pulse-dot" style={{ backgroundColor: isHealthy ? '#10B981' : '#F43F5E' }} />
+          <span>{isHealthy ? `Brightway (${health.installed_methods_count || 762} Methods)` : 'Engine Disconnected'}</span>
+        </div>
       </div>
     </header>
   )

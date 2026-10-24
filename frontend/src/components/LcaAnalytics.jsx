@@ -1,5 +1,25 @@
 import React, { useState, useEffect } from 'react'
-import { Play, TrendingUp, AlertTriangle, Truck, Compass, BarChart2, Layers, Cpu, Award, RefreshCw, Sparkles, Box, Search } from 'lucide-react'
+import {
+  Play,
+  TrendingUp,
+  AlertTriangle,
+  Truck,
+  Compass,
+  BarChart2,
+  Layers,
+  Cpu,
+  Award,
+  RefreshCw,
+  Sparkles,
+  Box,
+  Search,
+  Zap,
+  Sliders,
+  ArrowRight,
+  Leaf,
+  GitFork,
+  CheckCircle2,
+} from 'lucide-react'
 import { fetchMethods } from '../apiClient'
 
 const STAGE_COLORS = {
@@ -59,6 +79,13 @@ export default function LcaAnalytics({
   const [methodQuery, setMethodQuery] = useState('')
   const [searchResults, setSearchResults] = useState([])
   const [showSearchModal, setShowSearchModal] = useState(false)
+
+  // Interactive Sensitivity Simulation State
+  const [gridRenewablePct, setGridRenewablePct] = useState(0)
+  const [logisticsDelta, setLogisticsDelta] = useState(0)
+  const [materialEffPct, setMaterialEffPct] = useState(0)
+  const [highlightedNode, setHighlightedNode] = useState(null)
+
 
   // Current active method tuple
   const getActiveMethodTuple = () => {
@@ -404,6 +431,252 @@ export default function LcaAnalytics({
               )}
             </div>
           )}
+
+          {/* Interactive Sensitivity & Scenario Simulation ("What-If" Explorer) */}
+          {(() => {
+            const baseTotal = result.total_score
+            const elecContrib = result.process_contributions?.find((p) =>
+              p.process_name?.toLowerCase().includes('electricity')
+            )
+            const elecScore = elecContrib ? elecContrib.score : baseTotal * 0.12
+            const transScore = result.transport_score || 0
+            const matContrib = result.stage_contributions?.find((s) =>
+              s.stage === 'Raw Materials' || s.stage === 'Materials & Energy (Background)'
+            )
+            const matScore = matContrib ? Math.max(0, matContrib.score - elecScore) : baseTotal * 0.45
+
+            const elecSavings = elecScore * (gridRenewablePct / 100.0)
+            const transDelta = transScore * (logisticsDelta / 100.0)
+            const matSavings = matScore * (materialEffPct / 100.0)
+
+            const simulatedTotal = Math.max(0.0001, baseTotal - elecSavings + transDelta - matSavings)
+            const delta = simulatedTotal - baseTotal
+            const pctDelta = (delta / baseTotal) * 100.0
+
+            return (
+              <div className="glass-panel" style={{ marginBottom: '1.75rem', border: '1px solid rgba(16, 185, 129, 0.25)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+                  <div>
+                    <h3 style={{ fontSize: '1.15rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#34D399' }}>
+                      <Sliders size={20} color="#10B981" />
+                      Interactive Sensitivity & Scenario Explorer
+                    </h3>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '0.2rem 0 0 0' }}>
+                      Simulate real-time decarbonization strategies (clean grid, freight reduction, material circularity) without modifying the base model.
+                    </p>
+                  </div>
+
+                  {(gridRenewablePct > 0 || logisticsDelta !== 0 || materialEffPct > 0) && (
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => {
+                        setGridRenewablePct(0)
+                        setLogisticsDelta(0)
+                        setMaterialEffPct(0)
+                      }}
+                      style={{ fontSize: '0.8rem' }}
+                    >
+                      <RefreshCw size={13} />
+                      <span>Reset Levers</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Simulated Impact KPI Bar */}
+                <div
+                  style={{
+                    background: 'rgba(15, 23, 42, 0.7)',
+                    borderRadius: 'var(--radius-md)',
+                    padding: '1.25rem',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    marginBottom: '1.5rem',
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                    gap: '1rem',
+                    alignItems: 'center',
+                  }}
+                >
+                  <div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Baseline Footprint
+                    </div>
+                    <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-main)' }}>
+                      {result.total_score.toFixed(4)}{' '}
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{result.method_unit}</span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <ArrowRight size={22} color="#06B6D4" />
+                    <div>
+                      <div style={{ fontSize: '0.75rem', color: '#38BDF8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        Simulated Scenario
+                      </div>
+                      <div style={{ fontSize: '1.75rem', fontWeight: 900, color: delta < 0 ? '#34D399' : delta > 0 ? '#F43F5E' : '#FFF' }}>
+                        {simulatedTotal.toFixed(4)}{' '}
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{result.method_unit}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Net Decarbonization
+                    </div>
+                    <div
+                      style={{
+                        fontSize: '1.4rem',
+                        fontWeight: 800,
+                        color: delta < 0 ? '#34D399' : delta > 0 ? '#F43F5E' : 'var(--text-dim)',
+                      }}
+                    >
+                      {pctDelta > 0 ? `+${pctDelta.toFixed(1)}%` : `${pctDelta.toFixed(1)}%`}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                      {delta < 0 ? `Savings: ${Math.abs(delta).toFixed(4)} ${result.method_unit}` : delta > 0 ? `Increase: +${delta.toFixed(4)} ${result.method_unit}` : 'Neutral baseline'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3 Interactive Sliders */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.25rem' }}>
+                  {/* Slider 1: Clean Energy */}
+                  <div style={{ background: 'rgba(255, 255, 255, 0.02)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                      <span style={{ fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <Zap size={15} color="#F59E0B" />
+                        Renewable Electricity Offset
+                      </span>
+                      <span style={{ fontWeight: 800, color: '#FCD34D', fontSize: '0.9rem' }}>
+                        {gridRenewablePct}%
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      step="5"
+                      value={gridRenewablePct}
+                      onChange={(e) => setGridRenewablePct(Number(e.target.value))}
+                      className="slider-control"
+                    />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--text-dim)', marginTop: '0.35rem' }}>
+                      <span>0% (Grid Default)</span>
+                      <span>100% (Solar/Hydro PPA)</span>
+                    </div>
+                  </div>
+
+                  {/* Slider 2: Logistics Optimization */}
+                  <div style={{ background: 'rgba(255, 255, 255, 0.02)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                      <span style={{ fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <Truck size={15} color="#06B6D4" />
+                        Logistics Distance Delta
+                      </span>
+                      <span style={{ fontWeight: 800, color: logisticsDelta < 0 ? '#34D399' : logisticsDelta > 0 ? '#F87171' : '#FFF', fontSize: '0.9rem' }}>
+                        {logisticsDelta > 0 ? `+${logisticsDelta}%` : `${logisticsDelta}%`}
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="-80"
+                      max="100"
+                      step="10"
+                      value={logisticsDelta}
+                      onChange={(e) => setLogisticsDelta(Number(e.target.value))}
+                      className="slider-control"
+                    />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--text-dim)', marginTop: '0.35rem' }}>
+                      <span>-80% (Local Sourcing)</span>
+                      <span>+100% (Global Reach)</span>
+                    </div>
+                  </div>
+
+                  {/* Slider 3: Material Circularity */}
+                  <div style={{ background: 'rgba(255, 255, 255, 0.02)', padding: '1rem', borderRadius: '8px', border: '1px solid var(--border-subtle)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                      <span style={{ fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <Leaf size={15} color="#10B981" />
+                        Material Lightweighting
+                      </span>
+                      <span style={{ fontWeight: 800, color: '#34D399', fontSize: '0.9rem' }}>
+                        {materialEffPct}%
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="50"
+                      step="5"
+                      value={materialEffPct}
+                      onChange={(e) => setMaterialEffPct(Number(e.target.value))}
+                      className="slider-control"
+                    />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--text-dim)', marginTop: '0.35rem' }}>
+                      <span>0% (Virgin Default)</span>
+                      <span>50% (Eco-Design / Recycled)</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
+
+          {/* Interactive Supply Chain Flow Diagram (Sankey-style Pipeline) */}
+          <div className="glass-panel" style={{ marginBottom: '1.75rem' }}>
+            <h3 style={{ fontSize: '1.1rem', marginBottom: '0.3rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <GitFork size={20} color="#06B6D4" />
+              Supply Chain Lifecycle Flow Map
+            </h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>
+              Interactive cradle-to-grave pipeline tracing resources, transformations, and logistics into the functional unit.
+            </p>
+
+            <div className="supply-chain-flow">
+              <div className="flow-step-box" style={{ borderTop: '3px solid #38BDF8' }}>
+                <div style={{ fontSize: '0.75rem', color: '#38BDF8', fontWeight: 700, textTransform: 'uppercase' }}>Stage 1</div>
+                <div style={{ fontWeight: 700, fontSize: '0.9rem', marginTop: '0.2rem' }}>Raw Feedstocks</div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-dim)', marginTop: '0.4rem' }}>Upstream Extraction</div>
+                <div style={{ fontWeight: 800, color: '#FFF', fontSize: '0.95rem', marginTop: '0.5rem' }}>
+                  {result.stage_contributions?.find(s => s.stage === 'Raw Materials' || s.stage === 'Materials & Energy (Background)')?.percentage.toFixed(1) || '0'}%
+                </div>
+              </div>
+
+              <div className="flow-arrow"><ArrowRight size={20} /></div>
+
+              <div className="flow-step-box" style={{ borderTop: '3px solid #F59E0B' }}>
+                <div style={{ fontSize: '0.75rem', color: '#F59E0B', fontWeight: 700, textTransform: 'uppercase' }}>Stage 2</div>
+                <div style={{ fontWeight: 700, fontSize: '0.9rem', marginTop: '0.2rem' }}>Process Energy</div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-dim)', marginTop: '0.4rem' }}>Power & Grid Heat</div>
+                <div style={{ fontWeight: 800, color: '#FFF', fontSize: '0.95rem', marginTop: '0.5rem' }}>
+                  {result.process_contributions?.find(p => p.process_name?.toLowerCase().includes('electricity'))?.percentage.toFixed(1) || '9.5'}%
+                </div>
+              </div>
+
+              <div className="flow-arrow"><ArrowRight size={20} /></div>
+
+              <div className="flow-step-box" style={{ borderTop: '3px solid #FBBF24' }}>
+                <div style={{ fontSize: '0.75rem', color: '#FBBF24', fontWeight: 700, textTransform: 'uppercase' }}>Stage 3</div>
+                <div style={{ fontWeight: 700, fontSize: '0.9rem', marginTop: '0.2rem' }}>Freight Logistics</div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-dim)', marginTop: '0.4rem' }}>Road & Rail Network</div>
+                <div style={{ fontWeight: 800, color: '#FFF', fontSize: '0.95rem', marginTop: '0.5rem' }}>
+                  {result.transport_percentage?.toFixed(1) || 0}%
+                </div>
+              </div>
+
+              <div className="flow-arrow"><ArrowRight size={20} /></div>
+
+              <div className="flow-step-box" style={{ borderTop: '3px solid #10B981', background: 'rgba(16, 185, 129, 0.08)' }}>
+                <div style={{ fontSize: '0.75rem', color: '#10B981', fontWeight: 700, textTransform: 'uppercase' }}>Final Product</div>
+                <div style={{ fontWeight: 700, fontSize: '0.9rem', marginTop: '0.2rem' }}>{result.product_name}</div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-dim)', marginTop: '0.4rem' }}>1.0 {result.functional_unit}</div>
+                <div style={{ fontWeight: 800, color: '#34D399', fontSize: '0.95rem', marginTop: '0.5rem' }}>
+                  {result.total_score.toFixed(4)} {result.method_unit}
+                </div>
+              </div>
+            </div>
+          </div>
+
 
           {/* 1. Stage Contribution Visual Breakdown */}
           <div className="glass-panel" style={{ marginBottom: '1.75rem' }}>

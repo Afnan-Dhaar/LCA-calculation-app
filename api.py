@@ -11,13 +11,19 @@ Provides endpoints for:
 from __future__ import annotations
 
 import json
+import os
+import threading
+import time
 from pathlib import Path
 from typing import Any, Literal
 
 import bw2data as bd
-from fastapi import FastAPI, HTTPException, Query, status
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, Security, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import JSONResponse
 
 import db as database
 from brightway_engine import (
@@ -38,6 +44,99 @@ from product_model import (
     save_products_to_json,
     validate_product,
 )
+
+# --------------------------------------------------
+# Production Security & Throttling Configuration
+# --------------------------------------------------
+
+API_SECURITY_ENABLED = os.getenv("API_SECURITY_ENABLED", "false").lower() in ("true", "1")
+API_KEY = os.getenv("API_KEY", "lca-studio-secret-2026")
+RATE_LIMIT_PER_MINUTE = int(os.getenv("RATE_LIMIT_PER_MINUTE", "120"))
+MAX_PAYLOAD_BYTES = int(os.getenv("MAX_PAYLOAD_BYTES", str(10 * 1024 * 1024)))  # 10 MB limit
+
+api_key_header_scheme = APIKeyHeader(name="X-API-Key", auto_error=False)
+bearer_scheme = HTTPBearer(auto_error=False)
+
+
+def verify_api_key(
+    key_header: str | None = Security(api_key_header_scheme),
+    bearer_token: HTTPAuthorizationCredentials | None = Security(bearer_scheme),
+) -> str:
+    """Validate API key via 'X-API-Key' or 'Authorization: Bearer <key>'.
+    Bypassed when API_SECURITY_ENABLED is false (e.g. development/testing mode).
+    """
+    if not API_SECURITY_ENABLED:
+        return "development_bypass"
+
+    token = key_header or (bearer_token.credentials if bearer_token else None)
+    if not token or token != API_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or missing API key. Provide valid key via 'X-API-Key' header or 'Authorization: Bearer <key>'.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return token
+
+
+class SlidingWindowRateLimiter:
+    """Thread-safe in-memory sliding window rate limiter."""
+
+    def __init__(self, limit_per_minute: int = 120):
+        self.limit = limit_per_minute
+        self.records: dict[str, list[float]] = {}
+        self.lock = threading.Lock()
+        self.enabled = os.getenv("RATE_LIMIT_ENABLED", "true").lower() in ("true", "1")
+
+    def check(self, client_ip: str) -> tuple[bool, int]:
+        if not self.enabled:
+            return True, 0
+        now = time.time()
+        window_start = now - 60.0
+        with self.lock:
+            timestamps = self.records.get(client_ip, [])
+            timestamps = [t for t in timestamps if t > window_start]
+            if len(timestamps) >= self.limit:
+                retry_after = max(1, int(60.0 - (now - timestamps[0])))
+                self.records[client_ip] = timestamps
+                return False, retry_after
+            timestamps.append(now)
+            self.records[client_ip] = timestamps
+            return True, 0
+
+
+rate_limiter = SlidingWindowRateLimiter(limit_per_minute=RATE_LIMIT_PER_MINUTE)
+
+
+class ProductionGuardsMiddleware(BaseHTTPMiddleware):
+    """Enforces maximum payload size and rate limits calculation endpoints."""
+
+    async def dispatch(self, request: Request, call_next):
+        # 1. Payload size guard
+        content_length = request.headers.get("content-length")
+        if content_length:
+            try:
+                if int(content_length) > MAX_PAYLOAD_BYTES:
+                    return JSONResponse(
+                        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                        content={"detail": f"Payload exceeds maximum allowed size of {MAX_PAYLOAD_BYTES} bytes."},
+                    )
+            except ValueError:
+                pass
+
+        # 2. Rate limiting guard on calculating endpoints
+        if request.url.path.startswith("/v1/lca/calculate") or request.url.path.startswith("/api/lca/calculate"):
+            client_ip = request.client.host if request.client else "unknown"
+            allowed, retry_after = rate_limiter.check(client_ip)
+            if not allowed:
+                return JSONResponse(
+                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                    content={"detail": "Too many LCA calculation requests. Please slow down."},
+                    headers={"Retry-After": str(retry_after)},
+                )
+
+        response = await call_next(request)
+        return response
+
 
 # --------------------------------------------------
 # FastAPI App Initialization
@@ -65,7 +164,9 @@ def startup_event():
     except Exception as err:
         print(f"Startup synchronization notice: {err}")
 
-# Enable CORS for external frontend or microservice integration
+
+# Production guards and CORS middlewares
+app.add_middleware(ProductionGuardsMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -75,6 +176,7 @@ app.add_middleware(
 )
 
 STORAGE_FILE = Path("saved_products.json")
+
 
 # --------------------------------------------------
 # Pydantic Request & Response Schemas
@@ -512,12 +614,36 @@ def get_database_status() -> dict[str, Any]:
 # ===========================================================================
 
 # --------------------------------------------------
+# Auth & Security Status Endpoints
+# --------------------------------------------------
+
+
+@app.get("/v1/auth/status", tags=["security"], summary="Auth & Security Status")
+def v1_auth_status() -> dict[str, Any]:
+    """Retrieve current security and throttling configuration."""
+    return {
+        "security_enabled": API_SECURITY_ENABLED,
+        "rate_limit_per_minute": RATE_LIMIT_PER_MINUTE,
+        "max_payload_bytes": MAX_PAYLOAD_BYTES,
+    }
+
+
+@app.get("/v1/auth/verify", tags=["security"], summary="Verify API Key")
+def v1_auth_verify(token: str = Depends(verify_api_key)) -> dict[str, Any]:
+    """Verify validity of provided API key or Bearer token."""
+    return {"status": "authenticated", "client": token}
+
+
+# --------------------------------------------------
 # 1. LCA Calculation
 # --------------------------------------------------
 
 
 @app.post("/v1/lca/calculate", tags=["lca"], summary="Calculate")
-def v1_calculate_lca(payload: dict[str, Any]) -> dict[str, Any]:
+def v1_calculate_lca(
+    payload: dict[str, Any],
+    _auth: str = Depends(verify_api_key),
+) -> dict[str, Any]:
     """Calculate cradle-to-gate environmental impacts (GWP100, Acidification)
     with ISO 14044 co-product mass/economic allocation and PostgreSQL audit logging.
     """
@@ -530,6 +656,7 @@ def v1_calculate_lca(payload: dict[str, Any]) -> dict[str, Any]:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"PCF LCA calculation failed: {str(e)}",
         )
+
 
 
 # --------------------------------------------------

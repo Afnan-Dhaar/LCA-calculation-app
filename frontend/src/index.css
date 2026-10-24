@@ -526,3 +526,69 @@ pre, code {
   overflow-x: auto;
   line-height: 1.5;
 }
+
+/* Custom Interactive Sliders */
+.slider-control {
+  width: 100%;
+  -webkit-appearance: none;
+  height: 6px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.12);
+  outline: none;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.slider-control::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #10B981;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.6);
+  cursor: pointer;
+  border: 2px solid #FFF;
+  transition: transform 0.15s, background-color 0.15s;
+}
+
+.slider-control::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  background: #34D399;
+}
+
+/* Supply Chain Flow Graph */
+.supply-chain-flow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  overflow-x: auto;
+  padding: 1.25rem 0.5rem;
+}
+
+.flow-step-box {
+  flex: 1;
+  min-width: 160px;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 1rem;
+  transition: all 0.25s ease;
+  position: relative;
+}
+
+.flow-step-box:hover {
+  border-color: rgba(16, 185, 129, 0.4);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px -4px rgba(0, 0, 0, 0.5);
+}
+
+.flow-arrow {
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+

@@ -12,6 +12,7 @@ import {
   deleteProduct,
   calculateLcaOnPayload,
   calculateLcaOnSaved,
+  fetchDatabaseVersion,
 } from './apiClient'
 import { SAMPLE_PRODUCTS } from './sampleData'
 import { CheckCircle2, AlertCircle } from 'lucide-react'
@@ -19,6 +20,7 @@ import { CheckCircle2, AlertCircle } from 'lucide-react'
 export default function App() {
   const [activeTab, setActiveTab] = useState('builder')
   const [health, setHealth] = useState(null)
+  const [dbStatus, setDbStatus] = useState(null)
   const [products, setProducts] = useState([])
   const [currentProduct, setCurrentProduct] = useState(SAMPLE_PRODUCTS[0])
   const [selectedProductId, setSelectedProductId] = useState('')
@@ -42,6 +44,13 @@ export default function App() {
     setHealth(h)
 
     try {
+      const ver = await fetchDatabaseVersion()
+      setDbStatus(ver)
+    } catch (err) {
+      console.warn('Could not fetch db version:', err)
+    }
+
+    try {
       const prods = await fetchProducts()
       setProducts(prods)
       if (prods.length > 0 && !selectedProductId) {
@@ -51,6 +60,7 @@ export default function App() {
       console.warn('Could not fetch saved products:', err)
     }
   }
+
 
   useEffect(() => {
     loadData()
@@ -164,7 +174,9 @@ export default function App() {
         setActiveTab={setActiveTab}
         health={health}
         savedCount={products.length}
+        dbStatus={dbStatus}
       />
+
 
       {/* Main View Port */}
       <main className="main-content">

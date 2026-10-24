@@ -754,6 +754,92 @@ def test_v1_multi_hop_graph_unit_conversion():
         client.delete("/v1/units/hop_b_c")
 
 
+def test_security_status_and_auth_bypass():
+    """Verify auth status endpoint and dev bypass behavior."""
+    res = client.get("/v1/auth/status")
+    assert res.status_code == 200, res.text
+    data = res.json()
+    assert "security_enabled" in data
+    assert "rate_limit_per_minute" in data
+    assert "max_payload_bytes" in data
+
+    # Verify endpoint works without credentials in dev mode
+    v_res = client.get("/v1/auth/verify")
+    assert v_res.status_code == 200
+    assert v_res.json()["client"] == "development_bypass"
+
+
+def test_security_api_key_enforcement():
+    """Verify API key verification when security is enabled."""
+    original_state = api.API_SECURITY_ENABLED
+    try:
+        api.API_SECURITY_ENABLED = True
+
+        # Missing key -> 401
+        res_missing = client.get("/v1/auth/verify")
+        assert res_missing.status_code == 401, res_missing.text
+        assert "Invalid or missing API key" in res_missing.json()["detail"]
+
+        # Wrong key -> 401
+        res_wrong = client.get("/v1/auth/verify", headers={"X-API-Key": "wrong-key-123"})
+        assert res_wrong.status_code == 401
+
+        # Valid X-API-Key -> 200
+        res_valid_header = client.get("/v1/auth/verify", headers={"X-API-Key": api.API_KEY})
+        assert res_valid_header.status_code == 200
+        assert res_valid_header.json()["status"] == "authenticated"
+
+        # Valid Bearer token -> 200
+        res_valid_bearer = client.get("/v1/auth/verify", headers={"Authorization": f"Bearer {api.API_KEY}"})
+        assert res_valid_bearer.status_code == 200
+        assert res_valid_bearer.json()["status"] == "authenticated"
+    finally:
+        api.API_SECURITY_ENABLED = original_state
+
+
+def test_rate_limiter_and_payload_guards():
+    """Verify that excessive requests trigger HTTP 429 and oversized payloads trigger HTTP 413."""
+    # 1. Test 413 Content Too Large
+    oversized_res = client.post(
+        "/v1/lca/calculate",
+        json={"dummy": "payload"},
+        headers={"Content-Length": str(20 * 1024 * 1024)},
+    )
+    assert oversized_res.status_code == 413, oversized_res.text
+    assert "exceeds maximum allowed size" in oversized_res.json()["detail"]
+
+    # 2. Test 429 Too Many Requests
+    original_limit = api.rate_limiter.limit
+    original_records = api.rate_limiter.records.copy()
+    try:
+        api.rate_limiter.limit = 2
+        api.rate_limiter.records.clear()
+
+        # Simple dummy payload for rate test
+        simple_payload = {
+            "product": {"name": "Test Rate Limit", "functional_unit": "1 kg"},
+            "inputs": [{"key": "crude_oil", "amount": 1.0}],
+            "outputs": [{"type": "product", "name": "Test Rate Limit", "amount": 1.0}]
+        }
+
+        # Request 1: OK
+        r1 = client.post("/v1/lca/calculate", json=simple_payload)
+        assert r1.status_code == 200
+
+        # Request 2: OK
+        r2 = client.post("/v1/lca/calculate", json=simple_payload)
+        assert r2.status_code == 200
+
+        # Request 3: Exceeds rate limit -> 429
+        r3 = client.post("/v1/lca/calculate", json=simple_payload)
+        assert r3.status_code == 429, r3.text
+        assert "Retry-After" in r3.headers
+        assert "Too many LCA calculation requests" in r3.json()["detail"]
+    finally:
+        api.rate_limiter.limit = original_limit
+        api.rate_limiter.records = original_records
+
+
 if __name__ == "__main__":
     print("=" * 60)
     print("RUNNING FASTAPI REST API INTEGRATION TESTS")
@@ -776,6 +862,9 @@ if __name__ == "__main__":
         ("V1 Dependency Deletion Protection & Cascade", test_v1_dependency_delete_protection_and_cascade),
         ("V1 Flow & Method CRUD with Incremental Sync", test_v1_flow_and_method_crud),
         ("V1 Multi-Hop Graph Unit Conversion", test_v1_multi_hop_graph_unit_conversion),
+        ("Security Status & Auth Dev Bypass", test_security_status_and_auth_bypass),
+        ("Security API Key Enforcement & Bearer Token", test_security_api_key_enforcement),
+        ("Rate Limiter (429) & Payload Guards (413)", test_rate_limiter_and_payload_guards),
     ]
 
     passed = 0
