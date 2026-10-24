@@ -18,14 +18,17 @@ from pathlib import Path
 from typing import Any, Literal
 
 import bw2data as bd
-from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, Security, status
+from fastapi import Depends, FastAPI, File, HTTPException, Query, Request, Response, Security, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
 import db as database
+import excel_importer
+
 from brightway_engine import (
     DEFAULT_LCIA_METHOD,
     DEFAULT_PROJECT,
@@ -452,6 +455,54 @@ def get_all_products() -> list[dict[str, Any]]:
     return [product_to_dict(p) for p in products]
 
 
+@app.get("/api/products/template", tags=["Product Storage"])
+def download_excel_template():
+    """Download the official Product LCA Excel template (.xlsx)."""
+    template_path = Path(__file__).resolve().parent / "product_lca_template.xlsx"
+    if not template_path.exists():
+        raise HTTPException(status_code=404, detail="Excel template file not found.")
+    return FileResponse(
+        path=str(template_path),
+        filename="product_lca_template.xlsx",
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+
+
+@app.post("/api/products/import-excel", tags=["Product Storage"])
+def import_excel_products(file: UploadFile = File(...)) -> dict[str, Any]:
+    """Upload an Excel file (.xlsx) and import all defined products into storage."""
+    try:
+        imported = excel_importer.import_products_from_excel(file.file)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Excel parsing failed: {str(e)}",
+        )
+
+    products = load_products_from_json(STORAGE_FILE)
+    imported_ids = []
+    for prod in imported:
+        errors = validate_product(prod)
+        if errors:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Validation failed for product '{prod.product_id}': {', '.join(errors)}",
+            )
+        existing_idx = next((i for i, p in enumerate(products) if p.product_id == prod.product_id), None)
+        if existing_idx is not None:
+            products[existing_idx] = prod
+        else:
+            products.append(prod)
+        imported_ids.append(prod.product_id)
+
+    save_products_to_json(products, STORAGE_FILE)
+    return {
+        "status": "success",
+        "imported_count": len(imported),
+        "product_ids": imported_ids,
+    }
+
+
 @app.get("/api/products/{product_id}", response_model=ProductSchema, tags=["Product Storage"])
 def get_product_by_id(product_id: str) -> dict[str, Any]:
     """Retrieve a specific product payload by its product_id."""
@@ -516,6 +567,10 @@ def delete_product(product_id: str) -> dict[str, Any]:
         "deleted_product_id": product_id,
         "remaining_count": len(remaining),
     }
+
+
+
+
 
 
 @app.post("/api/lca/calculate", response_model=LCAResultResponse, tags=["LCA Calculations"])

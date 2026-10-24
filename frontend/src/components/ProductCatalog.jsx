@@ -1,5 +1,6 @@
-import React from 'react'
-import { Database, Play, Edit3, Trash2, Box, RefreshCw, Plus, Layers } from 'lucide-react'
+import React, { useRef, useState } from 'react'
+import { Database, Play, Edit3, Trash2, Box, RefreshCw, Plus, Layers, Upload, FileSpreadsheet, Download } from 'lucide-react'
+import { uploadExcelProducts } from '../apiClient'
 
 export default function ProductCatalog({
   products,
@@ -9,6 +10,27 @@ export default function ProductCatalog({
   onDeleteProduct,
   onCreateNew,
 }) {
+  const fileInputRef = useRef(null)
+  const [isUploading, setIsUploading] = useState(false)
+  const [uploadStatus, setUploadStatus] = useState(null)
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      setIsUploading(true)
+      setUploadStatus(null)
+      const res = await uploadExcelProducts(file)
+      setUploadStatus({ type: 'success', message: `Imported ${res.imported_count} product(s) from Excel!` })
+      await onRefresh()
+    } catch (err) {
+      setUploadStatus({ type: 'error', message: err.message })
+    } finally {
+      setIsUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
   return (
     <div className="product-catalog-view">
       <div className="glass-panel" style={{ marginBottom: '1.75rem' }}>
@@ -19,31 +41,76 @@ export default function ProductCatalog({
               Persisted Product Library
             </h2>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-              All product life cycle definitions stored permanently in <code>saved_products.json</code>.
+              Manage saved product models, or import full lifecycle workbooks via Excel.
             </p>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              accept=".xlsx"
+              style={{ display: 'none' }}
+            />
+
+            <a
+              href="/api/products/template"
+              download="product_lca_template.xlsx"
+              className="btn btn-secondary btn-sm"
+              title="Download Excel template workbook"
+            >
+              <Download size={14} />
+              <span>Template (.xlsx)</span>
+            </a>
+
+            <button
+              id="btn-import-excel"
+              className="btn btn-secondary btn-sm"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading}
+            >
+              <FileSpreadsheet size={14} color="#10B981" />
+              <span>{isUploading ? 'Importing...' : 'Import Excel'}</span>
+            </button>
+
             <button
               id="btn-refresh-catalog"
-              className="btn btn-secondary"
+              className="btn btn-secondary btn-sm"
               onClick={onRefresh}
             >
-              <RefreshCw size={15} />
-              <span>Refresh Library</span>
+              <RefreshCw size={14} />
+              <span>Refresh</span>
             </button>
 
             <button
               id="btn-create-new-product"
-              className="btn btn-primary"
+              className="btn btn-primary btn-sm"
               onClick={onCreateNew}
             >
-              <Plus size={15} />
+              <Plus size={14} />
               <span>Create Product</span>
             </button>
           </div>
         </div>
+
+        {uploadStatus && (
+          <div
+            style={{
+              marginTop: '1rem',
+              padding: '0.6rem 0.9rem',
+              borderRadius: '6px',
+              fontSize: '0.85rem',
+              background: uploadStatus.type === 'success' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(244, 63, 94, 0.15)',
+              color: uploadStatus.type === 'success' ? '#34D399' : '#FB7185',
+              border: `1px solid ${uploadStatus.type === 'success' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(244, 63, 94, 0.3)'}`,
+            }}
+          >
+            {uploadStatus.message}
+          </div>
+        )}
       </div>
+
 
       {products.length === 0 ? (
         <div className="glass-panel" style={{ textAlign: 'center', padding: '4rem 2rem' }}>

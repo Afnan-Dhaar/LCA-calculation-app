@@ -164,5 +164,20 @@ export async function fetchDatabaseVersion() {
   return await res.json()
 }
 
+export async function uploadExcelProducts(file) {
+  const formData = new FormData()
+  formData.append('file', file)
+  const res = await fetch('/api/products/import-excel', {
+    method: 'POST',
+    body: formData,
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}))
+    throw new Error(err.detail || 'Failed to import Excel file')
+  }
+  return await res.json()
+}
+
+
 
 
