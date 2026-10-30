@@ -68,6 +68,7 @@ def ensure_postgres_database_exists(db_url: str) -> None:
             password=password,
             host=host,
             port=port,
+            connect_timeout=2,
         )
         conn.autocommit = True
         with conn.cursor() as cur:
@@ -87,7 +88,7 @@ if "postgresql" in target_url:
 
 try:
     if target_url.startswith("postgresql://") or target_url.startswith("postgresql+psycopg://"):
-        engine = create_engine(target_url, pool_pre_ping=True)
+        engine = create_engine(target_url, pool_pre_ping=True, connect_args={"connect_timeout": 2})
         with engine.connect() as conn:
             pass
         active_db_type = "postgresql"

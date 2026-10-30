@@ -870,9 +870,9 @@ if __name__ == "__main__":
     passed = 0
     for name, func in tests:
         try:
-            print(f"Testing {name}...", end=" ")
+            print(f"Testing {name}...", end=" ", flush=True)
             func()
-            print("PASSED [OK]")
+            print("PASSED [OK]", flush=True)
             passed += 1
         except Exception as e:
             print(f"FAILED [X]\nError: {e}")

@@ -256,7 +256,9 @@ class ActivitySchema(BaseModel):
 
 
 class CalculateLCARequest(BaseModel):
-    product: ProductSchema | dict[str, Any]
+    model_config = {"extra": "allow"}
+
+    product: ProductSchema | dict[str, Any] | None = None
     method: list[str] | tuple[str, ...] | None = Field(
         default=None,
         description="Optional LCIA method tuple. Defaults to CML v4.8 GWP100 climate change.",
@@ -580,7 +582,20 @@ def calculate_lca(request: CalculateLCARequest) -> LCAResultResponse:
     Executes Brightway supply chain compilation, inventory generation (LCI),
     and characterized impact assessment (LCIA) with process and stage contribution breakdowns.
     """
-    domain_product = pydantic_to_dataclass(request.product)
+    # Support direct flat payload (inputs/outputs at top-level) or canonical nested product
+    extra = request.model_extra or {}
+    if "inputs" in extra or "outputs" in extra:
+        full_dict = dict(extra)
+        if request.product:
+            full_dict["product"] = (
+                request.product if isinstance(request.product, dict) else request.product.model_dump()
+            )
+        domain_product = dict_to_product(full_dict)
+    elif request.product is not None:
+        domain_product = pydantic_to_dataclass(request.product)
+    else:
+        domain_product = dict_to_product(extra)
+
     errors = validate_product(domain_product)
     if errors:
         raise HTTPException(
@@ -903,7 +918,7 @@ def v1_delete_method(key: str) -> dict[str, Any]:
 @app.get("/v1/database/version", tags=["database", "health"], summary="Database Version & Matrix Fingerprint")
 def v1_database_version() -> dict[str, Any]:
     """Retrieve database status, active database engine, record counts, and deterministic SHA-256 matrix hash."""
-    return database.get_db_status()
+    return database.get_db_status()  
 
 
 
