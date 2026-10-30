@@ -238,57 +238,556 @@ INITIAL_METHODS = {
 }
 
 INITIAL_SPECS = {
+    # -----------------------------------------------------------------------
+    # 1. Energy, Grids & Steam (IEA, DEFRA, US EPA eGRID)
+    # -----------------------------------------------------------------------
     "electricity_grid_sa": {
         "name": "Electricity, grid mix (SA)", "unit": "kilowatt hour", "location": "SA",
         "emissions": {"co2": 0.57, "ch4": 0.0008, "so2": 0.0011, "nox": 0.0009, "co": 0.0001}, "technosphere": {},
     },
+    "electricity_grid_us": {
+        "name": "Electricity, grid mix (US national average)", "unit": "kilowatt hour", "location": "US",
+        "emissions": {"co2": 0.385, "ch4": 0.0005, "so2": 0.0007, "nox": 0.0004}, "technosphere": {},
+    },
+    "electricity_grid_eu": {
+        "name": "Electricity, grid mix (EU-27 average)", "unit": "kilowatt hour", "location": "EU",
+        "emissions": {"co2": 0.230, "ch4": 0.0003, "so2": 0.0003, "nox": 0.0002}, "technosphere": {},
+    },
+    "electricity_grid_cn": {
+        "name": "Electricity, grid mix (China national)", "unit": "kilowatt hour", "location": "CN",
+        "emissions": {"co2": 0.580, "ch4": 0.0012, "so2": 0.0015, "nox": 0.0011}, "technosphere": {},
+    },
+    "electricity_grid_in": {
+        "name": "Electricity, grid mix (India national)", "unit": "kilowatt hour", "location": "IN",
+        "emissions": {"co2": 0.710, "ch4": 0.0016, "so2": 0.0022, "nox": 0.0014}, "technosphere": {},
+    },
+    "electricity_grid_glo": {
+        "name": "Electricity, grid mix (Global average)", "unit": "kilowatt hour", "location": "GLO",
+        "emissions": {"co2": 0.475, "ch4": 0.0007, "so2": 0.0009, "nox": 0.0007}, "technosphere": {},
+    },
+    "electricity_solar_pv": {
+        "name": "Electricity, solar photovoltaic (utility)", "unit": "kilowatt hour", "location": "GLO",
+        "emissions": {"co2": 0.035, "so2": 0.00005, "nox": 0.00004}, "technosphere": {},
+    },
+    "electricity_wind_onshore": {
+        "name": "Electricity, wind power (onshore)", "unit": "kilowatt hour", "location": "GLO",
+        "emissions": {"co2": 0.012, "so2": 0.00002, "nox": 0.00002}, "technosphere": {},
+    },
+    "electricity_hydro": {
+        "name": "Electricity, hydropower (run-of-river)", "unit": "kilowatt hour", "location": "GLO",
+        "emissions": {"co2": 0.018, "ch4": 0.00005}, "technosphere": {},
+    },
+    "electricity_nuclear": {
+        "name": "Electricity, nuclear power plant", "unit": "kilowatt hour", "location": "GLO",
+        "emissions": {"co2": 0.010, "so2": 0.00001, "nox": 0.00002}, "technosphere": {},
+    },
     "natural_gas_heat": {
-        "name": "Heat, natural gas", "unit": "kilowatt hour", "location": "SA",
+        "name": "Heat, natural gas boiler", "unit": "kilowatt hour", "location": "SA",
         "emissions": {"co2": 0.20, "ch4": 0.0005, "nox": 0.0002, "co": 0.00005}, "technosphere": {},
     },
-    "crude_oil": {
-        "name": "Crude oil, at refinery gate", "unit": "kilogram", "location": "GLO",
-        "emissions": {"co2": 0.45, "ch4": 0.004, "so2": 0.0006, "nox": 0.0005, "nmvoc": 0.0008, "co": 0.0002}, "technosphere": {},
+    "heavy_fuel_oil_heat": {
+        "name": "Heat, heavy fuel oil boiler", "unit": "kilowatt hour", "location": "GLO",
+        "emissions": {"co2": 0.28, "ch4": 0.0004, "so2": 0.0018, "nox": 0.0005}, "technosphere": {},
     },
-    "hydrogen_smr": {
-        "name": "Hydrogen, steam reforming", "unit": "kilogram", "location": "GLO",
-        "emissions": {"co2": 9.0, "ch4": 0.02, "co": 0.001}, "technosphere": {"electricity_grid_sa": 0.5},
+    "coal_industrial_heat": {
+        "name": "Heat, coal-fired industrial furnace", "unit": "kilowatt hour", "location": "GLO",
+        "emissions": {"co2": 0.34, "ch4": 0.0008, "so2": 0.0025, "nox": 0.0008}, "technosphere": {},
     },
-    "steel_low_alloy": {
-        "name": "Steel, low-alloyed", "unit": "kilogram", "location": "GLO",
-        "emissions": {"co2": 1.9, "ch4": 0.004, "so2": 0.001}, "technosphere": {"electricity_grid_sa": 0.4},
+    "steam_district_industrial": {
+        "name": "Steam, industrial process steam", "unit": "kilowatt hour", "location": "GLO",
+        "emissions": {"co2": 0.22, "so2": 0.0002, "nox": 0.0002}, "technosphere": {},
     },
-    "aluminium_primary": {
-        "name": "Aluminium, primary", "unit": "kilogram", "location": "GLO",
-        "emissions": {"co2": 6.5, "n2o": 0.0002, "so2": 0.003}, "technosphere": {"electricity_grid_sa": 14.0},
-    },
-    "polypropylene": {
-        "name": "Polypropylene granulate", "unit": "kilogram", "location": "GLO",
-        "emissions": {"co2": 1.6, "ch4": 0.01, "nmvoc": 0.002}, "technosphere": {},
-    },
-    "truck_16t": {
-        "name": "Transport, truck 16t", "unit": "ton kilometer", "location": "RoW",
-        "emissions": {"co2": 0.11, "n2o": 0.000003, "nox": 0.0004, "nmvoc": 0.00005, "co": 0.0001}, "technosphere": {},
-    },
-    "rail_freight": {
-        "name": "Transport, freight train", "unit": "ton kilometer", "location": "RoW",
-        "emissions": {"co2": 0.03, "nox": 0.0001}, "technosphere": {},
-    },
-    "ship_freight": {
-        "name": "Transport, sea freight", "unit": "ton kilometer", "location": "GLO",
-        "emissions": {"co2": 0.012, "so2": 0.0001, "nox": 0.0002}, "technosphere": {},
+    "compressed_air_7bar": {
+        "name": "Compressed air, 7 bar industrial", "unit": "cubic meter", "location": "SA",
+        "emissions": {"co2": 0.022}, "technosphere": {"electricity_grid_sa": 0.10},
     },
     "water_supply": {
         "name": "Water supply, desalinated", "unit": "cubic meter", "location": "SA",
         "emissions": {"co2": 0.05}, "technosphere": {"electricity_grid_sa": 3.5},
     },
+    "water_tap_municipal": {
+        "name": "Water supply, municipal tap water", "unit": "cubic meter", "location": "GLO",
+        "emissions": {"co2": 0.35, "so2": 0.0002, "nox": 0.0001}, "technosphere": {},
+    },
+    "water_cooling_tower": {
+        "name": "Water, process cooling water", "unit": "cubic meter", "location": "SA",
+        "emissions": {"co2": 0.08}, "technosphere": {"electricity_grid_sa": 0.12},
+    },
+
+    # -----------------------------------------------------------------------
+    # 2. Crude, Fuels & Petrochemicals (ecoinvent 3.9 & Sphera MLC)
+    # -----------------------------------------------------------------------
+    "crude_oil": {
+        "name": "Crude oil, at refinery gate", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 0.45, "ch4": 0.004, "so2": 0.0006, "nox": 0.0005, "nmvoc": 0.0008, "co": 0.0002}, "technosphere": {},
+    },
+    "natural_gas": {
+        "name": "Natural gas, high pressure pipeline", "unit": "kilogram", "location": "SA",
+        "emissions": {"co2": 0.42, "ch4": 0.008, "nox": 0.0003}, "technosphere": {},
+    },
+    "diesel_refinery_sa": {
+        "name": "Diesel, refinery gate", "unit": "kilogram", "location": "SA",
+        "emissions": {"co2": 0.35, "ch4": 0.0015, "so2": 0.0004, "nox": 0.0004}, "technosphere": {"crude_oil": 1.15},
+    },
+    "gasoline_refinery_sa": {
+        "name": "Motor gasoline, refinery gate", "unit": "kilogram", "location": "SA",
+        "emissions": {"co2": 0.38, "ch4": 0.0018, "so2": 0.0004, "nox": 0.0004, "nmvoc": 0.0012}, "technosphere": {"crude_oil": 1.18},
+    },
+    "lpg_refinery_sa": {
+        "name": "Liquefied petroleum gas (LPG), refinery gate", "unit": "kilogram", "location": "SA",
+        "emissions": {"co2": 0.32, "ch4": 0.0012, "so2": 0.0003, "nox": 0.0003}, "technosphere": {"crude_oil": 1.12},
+    },
+    "heavy_fuel_oil": {
+        "name": "Heavy fuel oil (HFO), refinery gate", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 0.36, "ch4": 0.0010, "so2": 0.0012, "nox": 0.0004}, "technosphere": {"crude_oil": 1.08},
+    },
+    "kerosene_jet_fuel": {
+        "name": "Kerosene / Jet A-1 aviation fuel", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 0.37, "ch4": 0.0014, "so2": 0.0004, "nox": 0.0004}, "technosphere": {"crude_oil": 1.16},
+    },
+    "naphtha": {
+        "name": "Naphtha, refinery gate", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 0.36, "ch4": 0.0015, "nmvoc": 0.0015}, "technosphere": {"crude_oil": 1.14},
+    },
+    "lubricating_oil": {
+        "name": "Lubricating base oil, refinery", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 0.85, "ch4": 0.002, "so2": 0.0008}, "technosphere": {"crude_oil": 1.25},
+    },
+    "bitumen_asphalt": {
+        "name": "Bitumen / asphalt binder", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 0.40, "ch4": 0.0008, "so2": 0.0005}, "technosphere": {"crude_oil": 1.05},
+    },
+    "hydrogen_smr": {
+        "name": "Hydrogen, steam methane reforming", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 9.0, "ch4": 0.02, "co": 0.001}, "technosphere": {"electricity_grid_sa": 0.5},
+    },
+    "hydrogen_electrolysis_green": {
+        "name": "Hydrogen, green PEM electrolysis", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 0.45, "so2": 0.0001}, "technosphere": {"electricity_solar_pv": 55.0},
+    },
+    "ethylene": {
+        "name": "Ethylene, steam cracking", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 1.35, "ch4": 0.005, "nox": 0.002, "nmvoc": 0.003}, "technosphere": {"naphtha": 1.2},
+    },
+    "propylene": {
+        "name": "Propylene, steam cracking", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 1.40, "ch4": 0.006, "nox": 0.0022, "nmvoc": 0.0028}, "technosphere": {"naphtha": 1.22},
+    },
+    "butadiene": {
+        "name": "1,3-Butadiene, purified", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 1.55, "ch4": 0.006, "nox": 0.0025}, "technosphere": {"naphtha": 1.3},
+    },
+    "benzene": {
+        "name": "Benzene, chemical grade", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 1.25, "ch4": 0.004, "nmvoc": 0.002}, "technosphere": {"naphtha": 1.15},
+    },
+    "toluene": {
+        "name": "Toluene, pure", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 1.20, "ch4": 0.0038, "nmvoc": 0.0018}, "technosphere": {"naphtha": 1.12},
+    },
+    "xylene_mixed": {
+        "name": "Mixed xylenes (ortho/meta/para)", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 1.20, "ch4": 0.0035, "nmvoc": 0.0018}, "technosphere": {"naphtha": 1.12},
+    },
+    "methanol": {
+        "name": "Methanol, natural gas synthesis", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 0.72, "ch4": 0.003, "nox": 0.0008}, "technosphere": {"natural_gas": 0.85},
+    },
+    "ammonia_anhydrous": {
+        "name": "Ammonia, anhydrous (Haber-Bosch)", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 2.10, "ch4": 0.004, "nh3": 0.0015, "nox": 0.0012}, "technosphere": {"natural_gas": 0.95},
+    },
+    "urea": {
+        "name": "Urea, technical/agricultural granulate", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 1.35, "ch4": 0.002, "nh3": 0.0012}, "technosphere": {"ammonia_anhydrous": 0.58},
+    },
+    "sulfuric_acid": {
+        "name": "Sulfuric acid (98%)", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 0.12, "so2": 0.0025}, "technosphere": {},
+    },
+    "nitric_acid": {
+        "name": "Nitric acid (60%)", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 1.85, "n2o": 0.006, "nox": 0.003}, "technosphere": {"ammonia_anhydrous": 0.30},
+    },
+    "phosphoric_acid": {
+        "name": "Phosphoric acid (industrial)", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 1.10, "po4": 0.002}, "technosphere": {"sulfuric_acid": 0.75},
+    },
+    "chlorine_gas": {
+        "name": "Chlorine gas (chlor-alkali membrane)", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 1.15, "nox": 0.001}, "technosphere": {"electricity_grid_sa": 1.8},
+    },
+    "sodium_hydroxide": {
+        "name": "Sodium hydroxide / caustic soda (50%)", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 1.25, "so2": 0.0008}, "technosphere": {"electricity_grid_sa": 1.9},
+    },
+    "sodium_carbonate": {
+        "name": "Sodium carbonate / soda ash", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 0.95, "so2": 0.0005}, "technosphere": {},
+    },
+    "carbon_black": {
+        "name": "Carbon black (furnace process)", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 2.60, "so2": 0.008, "nox": 0.004, "ch4": 0.003}, "technosphere": {"heavy_fuel_oil": 1.8},
+    },
+    "titanium_dioxide": {
+        "name": "Titanium dioxide pigment", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 4.20, "so2": 0.012, "nox": 0.005}, "technosphere": {"sulfuric_acid": 2.2},
+    },
+    "oxygen_industrial": {
+        "name": "Oxygen, liquid cryogenic separation", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 0.28}, "technosphere": {"electricity_grid_sa": 0.45},
+    },
+    "nitrogen_industrial": {
+        "name": "Nitrogen, liquid cryogenic separation", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 0.22}, "technosphere": {"electricity_grid_sa": 0.35},
+    },
+    "argon_industrial": {
+        "name": "Argon, liquid cryogenic separation", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 0.45}, "technosphere": {"electricity_grid_sa": 0.70},
+    },
+
+    # -----------------------------------------------------------------------
+    # 3. Plastics, Polymers & Rubbers (PlasticsEurope Eco-Profiles)
+    # -----------------------------------------------------------------------
+    "polypropylene": {
+        "name": "Polypropylene granulate / PP resin", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 1.60, "ch4": 0.01, "nmvoc": 0.002}, "technosphere": {"propylene": 1.05},
+    },
+    "polyethylene_hdpe": {
+        "name": "High-density polyethylene granulate / HDPE", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 1.90, "ch4": 0.009, "nmvoc": 0.0022}, "technosphere": {"ethylene": 1.05},
+    },
+    "polyethylene_ldpe": {
+        "name": "Low-density polyethylene granulate / LDPE", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 2.05, "ch4": 0.011, "nmvoc": 0.0025}, "technosphere": {"ethylene": 1.06},
+    },
+    "polyethylene_lldpe": {
+        "name": "Linear low-density polyethylene / LLDPE", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 1.95, "ch4": 0.010, "nmvoc": 0.0023}, "technosphere": {"ethylene": 1.05},
+    },
+    "polyethylene_terephthalate": {
+        "name": "Polyethylene terephthalate / PET bottle resin", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 2.15, "ch4": 0.008, "nox": 0.003}, "technosphere": {"ethylene": 0.35},
+    },
+    "polyvinyl_chloride": {
+        "name": "Polyvinyl chloride / PVC suspension resin", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 2.00, "ch4": 0.007, "so2": 0.002}, "technosphere": {"chlorine_gas": 0.60, "ethylene": 0.48},
+    },
+    "polystyrene_general": {
+        "name": "Polystyrene general purpose / GPPS", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 2.30, "ch4": 0.008, "nmvoc": 0.003}, "technosphere": {"benzene": 0.82, "ethylene": 0.30},
+    },
+    "polystyrene_expandable": {
+        "name": "Expandable polystyrene / EPS foam beads", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 2.50, "ch4": 0.009, "nmvoc": 0.005}, "technosphere": {"polystyrene_general": 0.95},
+    },
+    "abs_copolymer": {
+        "name": "Acrylonitrile butadiene styrene / ABS resin", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 3.10, "ch4": 0.012, "nox": 0.005, "nmvoc": 0.004}, "technosphere": {"benzene": 0.60, "butadiene": 0.25},
+    },
+    "polycarbonate": {
+        "name": "Polycarbonate granulate / PC", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 5.20, "ch4": 0.015, "so2": 0.008, "nox": 0.006}, "technosphere": {"benzene": 1.1},
+    },
+    "polyamide_6": {
+        "name": "Polyamide 6 granulate / Nylon 6", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 6.80, "n2o": 0.012, "so2": 0.010, "nox": 0.009}, "technosphere": {"benzene": 1.25},
+    },
+    "polyamide_66": {
+        "name": "Polyamide 66 granulate / Nylon 66", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 7.40, "n2o": 0.015, "so2": 0.011, "nox": 0.010}, "technosphere": {"benzene": 1.35},
+    },
+    "polyurethane_rigid_foam": {
+        "name": "Polyurethane rigid foam (PUR insulation)", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 3.80, "ch4": 0.010, "nox": 0.006}, "technosphere": {},
+    },
+    "polyurethane_flexible_foam": {
+        "name": "Polyurethane flexible foam (cushioning)", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 3.40, "ch4": 0.009, "nox": 0.005}, "technosphere": {},
+    },
+    "synthetic_rubber_sbr": {
+        "name": "Styrene-butadiene rubber / SBR synthetic rubber", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 2.70, "ch4": 0.008, "nmvoc": 0.003}, "technosphere": {"butadiene": 0.75, "benzene": 0.28},
+    },
+    "synthetic_rubber_epdm": {
+        "name": "EPDM synthetic rubber compound", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 2.95, "ch4": 0.009, "nmvoc": 0.003}, "technosphere": {"ethylene": 0.60, "propylene": 0.35},
+    },
+    "natural_rubber": {
+        "name": "Natural rubber / latex sheet (dry)", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 1.10, "ch4": 0.003, "n2o": 0.0005}, "technosphere": {},
+    },
+    "silicone_rubber": {
+        "name": "Silicone rubber elastomer", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 5.80, "so2": 0.009, "nox": 0.007}, "technosphere": {"electricity_grid_sa": 4.5},
+    },
+    "epoxy_resin": {
+        "name": "Epoxy resin, liquid bisphenol-A based", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 5.10, "ch4": 0.012, "so2": 0.006}, "technosphere": {"benzene": 0.95},
+    },
+
+    # -----------------------------------------------------------------------
+    # 4. Metals & Metallurgy (World Steel Association, ICA, IAI)
+    # -----------------------------------------------------------------------
+    "steel_low_alloy": {
+        "name": "Steel, low-alloyed generic", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 1.90, "ch4": 0.004, "so2": 0.001}, "technosphere": {"electricity_grid_sa": 0.4},
+    },
+    "steel_hot_rolled": {
+        "name": "Hot-rolled steel coil / sheet", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 1.85, "so2": 0.0035, "nox": 0.0028, "co": 0.008}, "technosphere": {"electricity_grid_sa": 0.35},
+    },
+    "steel_cold_rolled": {
+        "name": "Cold-rolled steel sheet / coil", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 2.10, "so2": 0.0040, "nox": 0.0032}, "technosphere": {"steel_hot_rolled": 1.05, "electricity_grid_sa": 0.20},
+    },
+    "steel_rebar": {
+        "name": "Steel reinforcing bar / rebar", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 1.45, "so2": 0.0022, "nox": 0.0020}, "technosphere": {"electricity_grid_sa": 0.45},
+    },
+    "steel_galvanized": {
+        "name": "Hot-dip galvanized steel sheet", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 2.40, "so2": 0.0045, "nox": 0.0035}, "technosphere": {"steel_cold_rolled": 1.02},
+    },
+    "steel_stainless_304": {
+        "name": "Stainless steel 304 coil / sheet", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 4.30, "so2": 0.015, "nox": 0.008}, "technosphere": {"electricity_grid_sa": 1.5},
+    },
+    "steel_stainless_316": {
+        "name": "Stainless steel 316 coil / sheet", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 5.20, "so2": 0.018, "nox": 0.009}, "technosphere": {"electricity_grid_sa": 1.8},
+    },
+    "iron_cast": {
+        "name": "Cast iron / ductile iron casting", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 1.65, "so2": 0.0030, "nox": 0.0025}, "technosphere": {"electricity_grid_sa": 0.6},
+    },
+    "aluminium_primary": {
+        "name": "Aluminium, primary ingot", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 6.50, "n2o": 0.0002, "so2": 0.003}, "technosphere": {"electricity_grid_sa": 14.0},
+    },
+    "aluminium_secondary": {
+        "name": "Aluminium, secondary recycled ingot", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 0.75, "so2": 0.0008, "nox": 0.0006}, "technosphere": {"electricity_grid_sa": 0.8},
+    },
+    "aluminium_extruded": {
+        "name": "Aluminium extruded profile / section", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 7.80, "so2": 0.0045, "nox": 0.0035}, "technosphere": {"aluminium_primary": 1.05},
+    },
+    "copper_cathode": {
+        "name": "Copper cathode, refined primary", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 3.80, "so2": 0.045, "nox": 0.006}, "technosphere": {"electricity_grid_sa": 1.8},
+    },
+    "copper_wire_rod": {
+        "name": "Copper wire rod, drawn", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 4.10, "so2": 0.046, "nox": 0.0065}, "technosphere": {"copper_cathode": 1.03},
+    },
+    "brass_generic": {
+        "name": "Brass alloy (CuZn37)", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 3.60, "so2": 0.030, "nox": 0.005}, "technosphere": {"copper_cathode": 0.63},
+    },
+    "zinc_primary": {
+        "name": "Zinc ingot, primary high-grade", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 3.10, "so2": 0.015, "nox": 0.004}, "technosphere": {"electricity_grid_sa": 3.2},
+    },
+    "lead_refined": {
+        "name": "Lead ingot, refined primary/secondary", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 1.60, "so2": 0.012, "nox": 0.002}, "technosphere": {},
+    },
+    "tin_pure": {
+        "name": "Tin ingot, refined pure 99.9%", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 14.50, "so2": 0.035, "nox": 0.012}, "technosphere": {},
+    },
+    "nickel_class1": {
+        "name": "Nickel, Class 1 briquette / cathode", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 13.00, "so2": 0.080, "nox": 0.015}, "technosphere": {},
+    },
+    "titanium_sponge": {
+        "name": "Titanium sponge / ingot", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 28.00, "so2": 0.050, "nox": 0.025}, "technosphere": {"chlorine_gas": 3.2},
+    },
+
+    # -----------------------------------------------------------------------
+    # 5. Transport & Logistics (DEFRA / GLEC Framework)
+    # -----------------------------------------------------------------------
+    "truck_16t": {
+        "name": "Transport, rigid truck 16t", "unit": "ton kilometer", "location": "RoW",
+        "emissions": {"co2": 0.110, "n2o": 0.000003, "nox": 0.0004, "nmvoc": 0.00005, "co": 0.0001}, "technosphere": {},
+    },
+    "truck_40t_articulated": {
+        "name": "Transport, articulated truck 40t (Euro 6)", "unit": "ton kilometer", "location": "GLO",
+        "emissions": {"co2": 0.065, "nox": 0.00025, "so2": 0.00002, "nmvoc": 0.00003}, "technosphere": {},
+    },
+    "truck_van_3_5t": {
+        "name": "Transport, light commercial van 3.5t", "unit": "ton kilometer", "location": "GLO",
+        "emissions": {"co2": 0.320, "nox": 0.0009, "so2": 0.00008}, "technosphere": {},
+    },
+    "rail_freight": {
+        "name": "Transport, freight train (diesel mix)", "unit": "ton kilometer", "location": "RoW",
+        "emissions": {"co2": 0.030, "nox": 0.0001}, "technosphere": {},
+    },
+    "rail_freight_electric": {
+        "name": "Transport, freight train (electric)", "unit": "ton kilometer", "location": "GLO",
+        "emissions": {"co2": 0.018, "nox": 0.00004}, "technosphere": {"electricity_grid_sa": 0.03},
+    },
+    "ship_freight": {
+        "name": "Transport, sea freight container ship", "unit": "ton kilometer", "location": "GLO",
+        "emissions": {"co2": 0.012, "so2": 0.0001, "nox": 0.0002}, "technosphere": {},
+    },
+    "ship_bulk_carrier": {
+        "name": "Transport, ocean bulk carrier cargo vessel", "unit": "ton kilometer", "location": "GLO",
+        "emissions": {"co2": 0.006, "so2": 0.00008, "nox": 0.00012}, "technosphere": {},
+    },
+    "ship_oil_tanker": {
+        "name": "Transport, ocean crude/product tanker", "unit": "ton kilometer", "location": "GLO",
+        "emissions": {"co2": 0.005, "so2": 0.00006, "nox": 0.00010}, "technosphere": {},
+    },
+    "ship_barge_inland": {
+        "name": "Transport, inland water barge", "unit": "ton kilometer", "location": "GLO",
+        "emissions": {"co2": 0.031, "so2": 0.00015, "nox": 0.0003}, "technosphere": {},
+    },
+    "air_freight_belly": {
+        "name": "Transport, air cargo (passenger belly freight)", "unit": "ton kilometer", "location": "GLO",
+        "emissions": {"co2": 0.650, "nox": 0.0028, "so2": 0.0002}, "technosphere": {},
+    },
+    "air_freight_freighter": {
+        "name": "Transport, air cargo (dedicated freighter aircraft)", "unit": "ton kilometer", "location": "GLO",
+        "emissions": {"co2": 1.100, "nox": 0.0045, "so2": 0.00035}, "technosphere": {},
+    },
+    "pipeline_crude_oil": {
+        "name": "Transport, crude oil onshore pipeline", "unit": "ton kilometer", "location": "SA",
+        "emissions": {"co2": 0.008}, "technosphere": {"electricity_grid_sa": 0.015},
+    },
+    "pipeline_natural_gas": {
+        "name": "Transport, natural gas high-pressure pipeline", "unit": "ton kilometer", "location": "SA",
+        "emissions": {"co2": 0.014, "ch4": 0.0002}, "technosphere": {},
+    },
+
+    # -----------------------------------------------------------------------
+    # 6. Packaging, Paper & Wood (FEFCO, ecoinvent)
+    # -----------------------------------------------------------------------
+    "corrugated_cardboard": {
+        "name": "Corrugated cardboard packaging box", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 0.88, "so2": 0.0012, "nox": 0.0015}, "technosphere": {},
+    },
+    "kraft_paper": {
+        "name": "Kraft paper, unbleached sack paper", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 0.95, "so2": 0.0015, "nox": 0.0018}, "technosphere": {},
+    },
+    "cartonboard_folding": {
+        "name": "Folding boxboard / cartonboard", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 1.05, "so2": 0.0018, "nox": 0.0020}, "technosphere": {},
+    },
+    "paper_graphic_printing": {
+        "name": "Graphic paper, woodfree coated", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 1.15, "so2": 0.0022, "nox": 0.0024}, "technosphere": {},
+    },
+    "glass_container_bottle": {
+        "name": "Container glass bottle / jar", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 0.75, "so2": 0.0015, "nox": 0.0012}, "technosphere": {"natural_gas": 0.15},
+    },
+    "tinplate_steel_can": {
+        "name": "Tinplate steel can packaging", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 2.45, "so2": 0.005, "nox": 0.004}, "technosphere": {"steel_cold_rolled": 1.05},
+    },
+    "aluminum_beverage_can": {
+        "name": "Aluminum beverage can (330ml)", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 6.20, "so2": 0.008, "nox": 0.005}, "technosphere": {"aluminium_primary": 0.75, "aluminium_secondary": 0.30},
+    },
+    "wood_pallet_euro": {
+        "name": "Wooden Euro pallet (reusable EPAL)", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 0.28, "so2": 0.0003}, "technosphere": {},
+    },
+    "wood_sawn_timber": {
+        "name": "Sawn timber, softwood kiln-dried", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 0.22, "so2": 0.0002}, "technosphere": {},
+    },
+    "plywood_generic": {
+        "name": "Plywood sheet, interior grade", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 0.65, "so2": 0.0008, "nox": 0.0010}, "technosphere": {},
+    },
+    "mdf_board": {
+        "name": "Medium-density fiberboard (MDF)", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 0.78, "so2": 0.0010, "nox": 0.0012}, "technosphere": {},
+    },
+
+    # -----------------------------------------------------------------------
+    # 7. Minerals & Construction Materials
+    # -----------------------------------------------------------------------
+    "cement_portland_clinker": {
+        "name": "Portland cement (CEM I)", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 0.84, "so2": 0.0015, "nox": 0.0022}, "technosphere": {},
+    },
+    "concrete_ready_mix_c25": {
+        "name": "Ready-mix concrete (standard C25/30)", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 0.11, "so2": 0.0002, "nox": 0.0003}, "technosphere": {"cement_portland_clinker": 0.13},
+    },
+    "flat_glass_float": {
+        "name": "Float glass (architectural/automotive)", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 1.15, "so2": 0.0028, "nox": 0.0025}, "technosphere": {"natural_gas": 0.22},
+    },
+    "sand_gravel_quarry": {
+        "name": "Silica sand and crushed gravel", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 0.0045, "nox": 0.00004}, "technosphere": {},
+    },
+    "limestone_milled": {
+        "name": "Ground limestone / calcium carbonate", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 0.025, "so2": 0.00005}, "technosphere": {},
+    },
+    "gypsum_plasterboard": {
+        "name": "Gypsum plasterboard / drywall", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 0.38, "so2": 0.0008, "nox": 0.0006}, "technosphere": {},
+    },
+    "ceramic_tiles": {
+        "name": "Ceramic floor and wall tiles", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 0.68, "so2": 0.0014, "nox": 0.0012}, "technosphere": {},
+    },
+    "brick_clay_fired": {
+        "name": "Fired clay building brick", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 0.24, "so2": 0.0006, "nox": 0.0005}, "technosphere": {},
+    },
+
+    # -----------------------------------------------------------------------
+    # 8. Waste Treatment & Recycling (ecoinvent & US EPA WARM)
+    # -----------------------------------------------------------------------
     "wastewater_treatment": {
-        "name": "Wastewater treatment", "unit": "cubic meter", "location": "SA",
+        "name": "Wastewater treatment (municipal & industrial)", "unit": "cubic meter", "location": "SA",
         "emissions": {"co2": 0.35, "ch4": 0.02, "nh3": 0.001, "po4": 0.0004, "p": 0.0001}, "technosphere": {"electricity_grid_sa": 0.4},
     },
     "hazardous_waste_incineration": {
-        "name": "Hazardous waste incineration", "unit": "kilogram", "location": "SA",
-        "emissions": {"co2": 1.1, "nox": 0.001, "so2": 0.0004}, "technosphere": {},
+        "name": "Hazardous waste incineration (high-temperature)", "unit": "kilogram", "location": "SA",
+        "emissions": {"co2": 1.10, "nox": 0.001, "so2": 0.0004}, "technosphere": {},
+    },
+    "waste_incineration_municipal": {
+        "name": "Municipal solid waste incineration with energy recovery", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 0.42, "nox": 0.0008, "so2": 0.0003}, "technosphere": {},
+    },
+    "landfill_municipal_waste": {
+        "name": "Sanitary landfill (municipal waste with landfill gas capture)", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 0.55, "ch4": 0.015}, "technosphere": {},
+    },
+    "landfill_inert_waste": {
+        "name": "Landfill for inert C&D waste", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 0.006}, "technosphere": {},
+    },
+    "recycling_plastic_mechanical": {
+        "name": "Plastic mechanical recycling (sorting, washing & granulating)", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 0.45, "so2": 0.0006}, "technosphere": {"electricity_grid_sa": 0.65},
+    },
+    "recycling_steel_scrap": {
+        "name": "Steel scrap processing for electric arc furnace", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 0.08, "nox": 0.0002}, "technosphere": {"electricity_grid_sa": 0.12},
+    },
+    "recycling_aluminium_scrap": {
+        "name": "Aluminium scrap sorting and remelting preparation", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 0.12, "nox": 0.0003}, "technosphere": {"electricity_grid_sa": 0.18},
+    },
+    "recycling_cardboard_pulping": {
+        "name": "Waste paper and cardboard pulping recycling", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 0.28, "so2": 0.0004}, "technosphere": {"electricity_grid_sa": 0.35},
+    },
+    "composting_organic_waste": {
+        "name": "Organic biowaste composting (aerobic)", "unit": "kilogram", "location": "GLO",
+        "emissions": {"co2": 0.11, "ch4": 0.002, "n2o": 0.0002}, "technosphere": {},
     },
 }
 
@@ -315,6 +814,7 @@ INITIAL_UNITS = [
     {"code": "ml_to_m3", "from_unit": "ml", "to_unit": "cubic meter", "factor": 0.000001, "dimension": "volume"},
     {"code": "gal_to_m3", "from_unit": "gal", "to_unit": "cubic meter", "factor": 0.00378541, "dimension": "volume"},
     {"code": "bbl_to_m3", "from_unit": "bbl", "to_unit": "cubic meter", "factor": 0.1589873, "dimension": "volume"},
+    {"code": "nm3_to_m3", "from_unit": "Nm3", "to_unit": "cubic meter", "factor": 1.0, "dimension": "volume"},
     # Distance
     {"code": "km_to_km", "from_unit": "km", "to_unit": "kilometer", "factor": 1.0, "dimension": "distance"},
     {"code": "m_to_km", "from_unit": "m", "to_unit": "kilometer", "factor": 0.001, "dimension": "distance"},
@@ -323,6 +823,11 @@ INITIAL_UNITS = [
     # Transport
     {"code": "tkm_to_tkm", "from_unit": "tkm", "to_unit": "ton kilometer", "factor": 1.0, "dimension": "transport"},
     {"code": "kgkm_to_tkm", "from_unit": "kgkm", "to_unit": "ton kilometer", "factor": 0.001, "dimension": "transport"},
+    {"code": "teu_km_to_tkm", "from_unit": "teu_km", "to_unit": "ton kilometer", "factor": 10.0, "dimension": "transport"},
+    # Quantity
+    {"code": "unit_to_unit", "from_unit": "unit", "to_unit": "unit", "factor": 1.0, "dimension": "quantity"},
+    {"code": "piece_to_unit", "from_unit": "piece", "to_unit": "unit", "factor": 1.0, "dimension": "quantity"},
+    {"code": "pcs_to_unit", "from_unit": "pcs", "to_unit": "unit", "factor": 1.0, "dimension": "quantity"},
 ]
 
 

@@ -801,6 +801,30 @@ def v1_upsert_activity(act_in: ActivitySchema) -> dict[str, Any]:
     return res
 
 
+@app.post("/v1/activities/bulk-import", tags=["activities"], summary="Bulk Import Activities")
+def v1_bulk_import_activities(
+    activities: list[ActivitySchema],
+    _auth: str = Depends(verify_api_key),
+) -> dict[str, Any]:
+    """Bulk import or update multiple background activities and incrementally sync Brightway."""
+    created = 0
+    updated = 0
+    import brightway_engine
+    for act_in in activities:
+        res = database.upsert_activity_db(act_in.model_dump())
+        if res.get("action") == "created":
+            created += 1
+        else:
+            updated += 1
+        brightway_engine.sync_single_activity(act_in.code)
+    return {
+        "status": "success",
+        "total_submitted": len(activities),
+        "created": created,
+        "updated": updated,
+    }
+
+
 @app.delete("/v1/activities/{code}", tags=["activities"], summary="Delete Activity")
 def v1_delete_activity(
     code: str,

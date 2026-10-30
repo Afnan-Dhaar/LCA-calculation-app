@@ -886,10 +886,12 @@ def sync_pcf_lca_project(force: bool = False) -> None:
     bd.projects.set_current(PCF_PROJECT)
 
     if not force and PCF_BIO in bd.databases and PCF_DB in bd.databases:
-        # Check if already initialized with current methods count
+        # Check if already initialized with current methods count and activity count
         db_methods_count = len(db.get_all_methods_db())
+        db_acts_count = len(db.get_all_activities_db())
         current_bw_methods = [m for m in bd.methods if m[0] in ["IPCC AR6", "DEMO"]]
-        if len(current_bw_methods) >= db_methods_count:
+        current_bw_acts = len(bd.Database(PCF_DB))
+        if len(current_bw_methods) >= db_methods_count and current_bw_acts >= db_acts_count:
             return
 
     # Clear old databases
@@ -1113,6 +1115,32 @@ def get_output_lhv(item: dict[str, Any]) -> float:
     return 42.0
 
 
+def find_background_activity(key_or_name: str | None, lca_db: Any) -> Any | None:
+    """Find a background activity in lca_db by exact code, slug, name, or alias."""
+    if not key_or_name:
+        return None
+    s = str(key_or_name).strip()
+    # 1. Exact code
+    if (PCF_DB, s) in lca_db:
+        return lca_db.get(s)
+    # 2. Slugified code (e.g. 'Polypropylene resin' -> 'polypropylene_resin')
+    slug = re.sub(r"[^a-zA-Z0-9_]+", "_", s.lower()).strip("_")
+    if (PCF_DB, slug) in lca_db:
+        return lca_db.get(slug)
+    # 3. Normalized exact or substring match in lca_db
+    norm_target = _normalize_name(s)
+    best_candidate = None
+    for act in lca_db:
+        norm_code = _normalize_name(act.get("code", ""))
+        norm_name = _normalize_name(act.get("name", ""))
+        if norm_target == norm_code or norm_target == norm_name:
+            return act
+        if norm_target in norm_name or norm_name in norm_target:
+            if best_candidate is None:
+                best_candidate = act
+    return best_candidate
+
+
 def calculate_pcf_lca(payload: dict[str, Any]) -> dict[str, Any]:
     """Execute dynamic multi-method LCA on a raw PCF payload with:
     1. ISO 14044 Allocation: Mass, Economic, and Energy (LHV Net Calorific Value)
@@ -1234,9 +1262,13 @@ def calculate_pcf_lca(payload: dict[str, Any]) -> dict[str, Any]:
             tkm = (mass_kg / 1000.0) * dist_km
             allocated_tkm = tkm * alloc_factor
             mode_key = inp.get("key", "truck_16t")
+            t_act = (
+                find_background_activity(inp.get("key"), lca_db)
+                or find_background_activity(inp.get("name"), lca_db)
+                or find_background_activity(mode_key, lca_db)
+            )
 
-            try:
-                t_act = lca_db.get(mode_key)
+            if t_act:
                 act.new_exchange(input=t_act.key, amount=allocated_tkm, type="technosphere").save()
                 input_contributions_raw.append({
                     "name": inp.get("name", mode_key),
@@ -1245,7 +1277,7 @@ def calculate_pcf_lca(payload: dict[str, Any]) -> dict[str, Any]:
                     "entered": f"{mass_val} {mass_u} x {dist_val} {dist_unit}",
                     "resolved": {
                         "database": PCF_DB,
-                        "code": mode_key,
+                        "code": t_act.get("code", mode_key),
                         "name": t_act.get("name", mode_key),
                         "location": t_act.get("location", "RoW"),
                         "unit": t_act.get("unit", "ton kilometer"),
@@ -1254,18 +1286,16 @@ def calculate_pcf_lca(payload: dict[str, Any]) -> dict[str, Any]:
                     "act": t_act,
                     "amount": allocated_tkm,
                 })
-            except Exception:
-                pass
         else:
             flow_key = inp.get("key", inp.get("name"))
-            try:
-                in_act = lca_db.get(flow_key)
+            in_act = find_background_activity(inp.get("key"), lca_db) or find_background_activity(inp.get("name"), lca_db)
+            if in_act:
                 expected_unit = in_act.get("unit", "kilogram")
                 converted_amt = db.convert_unit_db(raw_amt, input_unit or expected_unit, expected_unit)
                 allocated_amt = converted_amt * alloc_factor
                 act.new_exchange(input=in_act.key, amount=allocated_amt, type="technosphere").save()
                 input_contributions_raw.append({
-                    "name": inp.get("name", flow_key),
+                    "name": inp.get("name", in_act.get("name", flow_key)),
                     "role": "input",
                     "stage": stage_key if stage_key in ["raw_material", "manufacturing", "transport", "use", "end_of_life"] else "manufacturing",
                     "entered": f"{raw_amt} {input_unit}",
@@ -1280,22 +1310,20 @@ def calculate_pcf_lca(payload: dict[str, Any]) -> dict[str, Any]:
                     "act": in_act,
                     "amount": allocated_amt,
                 })
-            except Exception:
-                pass
 
     # Add Waste treatments with automatic unit conversion
     for w in wastes:
         waste_key = w.get("key", w.get("name"))
-        raw_w_amt = float(w.get("amount", 0.0))
-        w_unit = w.get("unit", "kg")
-        try:
-            w_act = lca_db.get(waste_key)
+        w_act = find_background_activity(w.get("key"), lca_db) or find_background_activity(w.get("name"), lca_db)
+        if w_act:
+            raw_w_amt = float(w.get("amount", 0.0))
+            w_unit = w.get("unit", "kg")
             expected_w_unit = w_act.get("unit", "kilogram")
             converted_w_amt = db.convert_unit_db(raw_w_amt, w_unit, expected_w_unit)
             w_amt = converted_w_amt * alloc_factor
             act.new_exchange(input=w_act.key, amount=w_amt, type="technosphere").save()
             input_contributions_raw.append({
-                "name": w.get("name", waste_key),
+                "name": w.get("name", w_act.get("name", waste_key)),
                 "role": "waste",
                 "stage": "waste_treatment",
                 "entered": f"{raw_w_amt} {w_unit}",
@@ -1310,8 +1338,6 @@ def calculate_pcf_lca(payload: dict[str, Any]) -> dict[str, Any]:
                 "act": w_act,
                 "amount": w_amt,
             })
-        except Exception:
-            pass
 
     # Add Direct Emissions with automatic unit conversion
     direct_emissions_raw: list[dict[str, Any]] = []
